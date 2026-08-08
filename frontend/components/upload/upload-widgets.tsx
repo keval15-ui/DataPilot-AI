@@ -81,7 +81,7 @@ export function UploadPanel() {
               ref={fileInputRef}
               type="file"
               hidden
-              accept=".csv,.xlsx,.xls"
+              accept=".csv,.xlsx,.xls,.db,.sqlite"
               onChange={handleFileUpload}
             />
 

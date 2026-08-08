@@ -33,6 +33,14 @@ type ChatMessage = {
   chart_config?: ChartConfig;
 };
 
+type StoredConversation = {
+  dataset_id?: string;
+  dataset_name?: string;
+  id?: string;
+  title?: string;
+  time?: string;
+};
+
 const suggestions = [
   "What drove the recent growth?",
   "Show me customer churn by region",
@@ -223,6 +231,46 @@ export function ChatPanel() {
           chart_config: response.chart_config,
         },
       ]);
+
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        try {
+          // 1. Update conversations
+          const storedConvs = localStorage.getItem("conversations");
+          const convs: StoredConversation[] = storedConvs ? JSON.parse(storedConvs) : [];
+          const existingIdx = convs.findIndex((c) => c.dataset_id === datasetId);
+          const activeDatasetStr = localStorage.getItem("dataset");
+          const activeDatasetName = activeDatasetStr ? JSON.parse(activeDatasetStr).original_filename : "Dataset";
+
+          const newConvo = {
+            id: datasetId,
+            dataset_id: datasetId,
+            dataset_name: activeDatasetName,
+            title: question.length > 30 ? question.slice(0, 30) + "..." : question,
+            time: "Just now"
+          };
+
+          if (existingIdx > -1) {
+            convs.splice(existingIdx, 1); // remove existing to move to top
+          }
+          convs.unshift(newConvo);
+          localStorage.setItem("conversations", JSON.stringify(convs.slice(0, 10)));
+
+          // 2. Update queries
+          if (response.sql) {
+            const storedQueries = localStorage.getItem("queries");
+            const queriesList = storedQueries ? JSON.parse(storedQueries) : [];
+            queriesList.unshift({
+              question,
+              time: "Just now",
+              sql: response.sql
+            });
+            localStorage.setItem("queries", JSON.stringify(queriesList.slice(0, 10)));
+          }
+        } catch (e) {
+          console.error("Failed to save conversation/query to localStorage", e);
+        }
+      }
     } catch (error) {
       console.error(error);
 
@@ -314,6 +362,18 @@ export function ChatPanel() {
                       </tbody>
                     </table>
                   </div>
+                </div>
+              )}
+
+              {message.chart_config && message.result && message.result.length > 0 && (
+                <div className="mt-4 border-t border-white/5 pt-4">
+                  <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-sky-400">
+                    Visual Chart
+                  </p>
+                  <RenderChart
+                    chartConfig={message.chart_config}
+                    data={message.result}
+                  />
                 </div>
               )}
             </div>

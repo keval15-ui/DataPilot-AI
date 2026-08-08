@@ -32,7 +32,7 @@ def validate_file(file: UploadFile) -> str:
 
     if extension not in ALLOWED_EXTENSIONS:
         raise ValueError(
-            "Only CSV and Excel files are supported."
+            "Only CSV, Excel, and SQLite files are supported."
         )
 
     return extension
