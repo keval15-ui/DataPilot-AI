@@ -198,7 +198,23 @@ export function ChatPanel() {
     if (!input.trim()) return;
 
     if (!datasetId) {
-      alert("No dataset selected.");
+      if (typeof window !== "undefined") {
+        try {
+          const storedNotifs = localStorage.getItem("notifications");
+          const list = storedNotifs ? JSON.parse(storedNotifs) : [];
+          list.unshift({
+            id: `no-dataset-${Date.now()}`,
+            type: "warning",
+            title: "Dataset unavailable",
+            message: "Please upload or select a dataset before starting an analysis.",
+            read: false,
+            time: "Just now"
+          });
+          localStorage.setItem("notifications", JSON.stringify(list.slice(0, 20)));
+        } catch (e) {
+          console.error("Failed to save warning notification", e);
+        }
+      }
       return;
     }
 
@@ -273,8 +289,9 @@ export function ChatPanel() {
           const list = storedNotifs ? JSON.parse(storedNotifs) : [];
           list.unshift({
             id: `query-${Date.now()}`,
-            title: "Query Processed",
-            message: `Executed SQL successfully for: "${question.length > 25 ? question.slice(0, 25) + "..." : question}"`,
+            type: "success",
+            title: "Analysis complete",
+            message: "Your query was executed successfully.",
             read: false,
             time: "Just now"
           });
@@ -285,6 +302,13 @@ export function ChatPanel() {
       }
     } catch (error) {
       console.error(error);
+      
+      let errorMessage = "Unable to execute the generated SQL.";
+      if (error instanceof Error) {
+        const msg = error.message;
+        const match = msg.match(/^\d+:\s*(.*)$/);
+        errorMessage = match ? match[1] : msg;
+      }
 
       setMessages((current) => [
         ...current,
@@ -295,6 +319,24 @@ export function ChatPanel() {
           result: [],
         },
       ]);
+
+      if (typeof window !== "undefined") {
+        try {
+          const storedNotifs = localStorage.getItem("notifications");
+          const list = storedNotifs ? JSON.parse(storedNotifs) : [];
+          list.unshift({
+            id: `query-fail-${Date.now()}`,
+            type: "error",
+            title: "Query failed",
+            message: errorMessage,
+            read: false,
+            time: "Just now"
+          });
+          localStorage.setItem("notifications", JSON.stringify(list.slice(0, 20)));
+        } catch (e) {
+          console.error("Failed to save query error notification", e);
+        }
+      }
     } finally {
       setTyping(false);
     }

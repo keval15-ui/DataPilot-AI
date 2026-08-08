@@ -54,8 +54,9 @@ export function UploadPanel() {
           const list = storedNotifs ? JSON.parse(storedNotifs) : [];
           list.unshift({
             id: `upload-${Date.now()}`,
-            title: "Dataset Ingested",
-            message: `Successfully uploaded ${file.name}. Ready for AI analysis.`,
+            type: "success",
+            title: "Dataset uploaded",
+            message: `${file.name} is ready for analysis.`,
             read: false,
             time: "Just now"
           });
@@ -72,8 +73,43 @@ export function UploadPanel() {
       setError("");
       router.push(`/chat?dataset=${response.dataset_id}`);
     } catch (err) {
-      setError("Upload failed.");
+      let errorMessage = "Upload failed.";
+      if (err instanceof Error) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
       console.error(err);
+
+      if (typeof window !== "undefined") {
+        try {
+          const storedNotifs = localStorage.getItem("notifications");
+          const list = storedNotifs ? JSON.parse(storedNotifs) : [];
+          
+          let title = "Upload failed";
+          let type = "error";
+
+          if (errorMessage.toLowerCase().includes("only csv") || errorMessage.toLowerCase().includes("supported")) {
+            title = "Unsupported file";
+            type = "error";
+          } else if (errorMessage.toLowerCase().includes("size") || errorMessage.toLowerCase().includes("50 mb")) {
+            title = "File too large";
+            type = "error";
+          }
+
+          list.unshift({
+            id: `upload-fail-${Date.now()}`,
+            type,
+            title,
+            message: errorMessage,
+            read: false,
+            time: "Just now"
+          });
+          localStorage.setItem("notifications", JSON.stringify(list.slice(0, 20)));
+        } catch (e) {
+          console.error("Failed to save upload error notification", e);
+        }
+      }
     } finally {
       setUploading(false);
     }

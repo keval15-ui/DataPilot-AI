@@ -30,30 +30,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     time: string;
   }
 
-  const initializeNotifications = (): Notification[] => {
-    const stored = localStorage.getItem("notifications");
+  const [notifications, setNotifications] = useState<Notification[]>(() => {
+    if (typeof window === "undefined") return [];
+
+    const stored = window.localStorage.getItem("notifications");
     if (stored) {
       return JSON.parse(stored);
-    } else {
-      const initial: Notification[] = [
-        { id: "welcome", title: "Welcome to DataPilot AI", message: "Start by uploading a dataset in the Upload page.", read: false, time: "Just now" },
-        { id: "cors-fix", title: "API Gateway Connected", message: "FastAPI endpoints configured and operational.", read: true, time: "1h ago" },
-        { id: "sqlite-fix", title: "SQLite Support Active", message: "Direct database uploads are now fully enabled.", read: true, time: "2h ago" },
-      ];
-      localStorage.setItem("notifications", JSON.stringify(initial));
-      return initial;
     }
-  };
 
-  const [notifications, setNotifications] = useState<Notification[]>(initializeNotifications);
+    const initial: Notification[] = [
+      { id: "welcome", title: "Welcome to DataPilot AI", message: "Start by uploading a dataset in the Upload page.", read: false, time: "Just now" },
+      { id: "cors-fix", title: "API Gateway Connected", message: "FastAPI endpoints configured and operational.", read: true, time: "1h ago" },
+      { id: "sqlite-fix", title: "SQLite Support Active", message: "Direct database uploads are now fully enabled.", read: true, time: "2h ago" },
+    ];
+
+    window.localStorage.setItem("notifications", JSON.stringify(initial));
+    return initial;
+  });
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
+    // Notifications are initialized lazily from localStorage.
+  }, []);
 
+  useEffect(() => {
     // Set up a listener for storage updates in same/other tabs
     const handleStorageChange = () => {
-      const updated = localStorage.getItem("notifications");
-      if (updated) setNotifications(JSON.parse(updated));
+      if (typeof window !== "undefined") {
+        const updated = window.localStorage.getItem("notifications");
+        if (updated) setNotifications(JSON.parse(updated));
+      }
     };
 
     window.addEventListener("storage", handleStorageChange);
@@ -70,7 +76,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const markAllAsRead = () => {
     const updated = notifications.map((n) => ({ ...n, read: true }));
     setNotifications(updated);
-    localStorage.setItem("notifications", JSON.stringify(updated));
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("notifications", JSON.stringify(updated));
+    }
   };
 
   return (
