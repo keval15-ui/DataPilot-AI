@@ -47,6 +47,22 @@ export function UploadPanel() {
 
       if (typeof window !== "undefined") {
         localStorage.setItem("dataset", JSON.stringify(response));
+        
+        // Add to notifications list
+        try {
+          const storedNotifs = localStorage.getItem("notifications");
+          const list = storedNotifs ? JSON.parse(storedNotifs) : [];
+          list.unshift({
+            id: `upload-${Date.now()}`,
+            title: "Dataset Ingested",
+            message: `Successfully uploaded ${file.name}. Ready for AI analysis.`,
+            read: false,
+            time: "Just now"
+          });
+          localStorage.setItem("notifications", JSON.stringify(list.slice(0, 20)));
+        } catch (e) {
+          console.error("Failed to save upload notification", e);
+        }
       }
 
       setRecentUploads((prev) => [

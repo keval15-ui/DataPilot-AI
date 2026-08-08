@@ -13,8 +13,11 @@ const futureFeatures = [
   { title: "Dashboard Builder", description: "Low-code dashboard composition with AI assistance." },
   { title: "AI Reports", description: "Narrative reporting with polished summaries and exports." },
   { title: "Team Workspaces", description: "Shared collaboration spaces for data teams and operators." },
-  { title: "Notifications", description: "Real-time AI alerts and workflow updates." },
   { title: "Authentication", description: "Role-based access and secure workspace controls." },
+];
+
+const activeFeatures = [
+  { title: "Notifications", description: "Real-time AI alerts and workflow updates." }
 ];
 
 export function SettingsPanel() {
@@ -62,10 +65,29 @@ export function SettingsPanel() {
 
       <Card>
         <div className="mb-4">
-          <h3 className="text-lg font-semibold text-white">Upcoming Features</h3>
-          <p className="mt-1 text-sm text-slate-400">Premium capabilities that are planned for future releases.</p>
+          <h3 className="text-lg font-semibold text-white">Feature Integrations</h3>
+          <p className="mt-1 text-sm text-slate-400">Manage active capabilities and view upcoming releases.</p>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {/* Active Features */}
+          {activeFeatures.map((feature) => (
+            <div key={feature.title} className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-4 shadow-inner">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="font-medium text-white">{feature.title}</p>
+                  <p className="mt-2 text-sm leading-6 text-slate-400">{feature.description}</p>
+                </div>
+                <div className="rounded-full border border-sky-400/20 bg-sky-500/10 p-2 text-sky-300">
+                  ✨
+                </div>
+              </div>
+              <span className="mt-4 inline-flex rounded-full bg-sky-500/20 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-sky-400">
+                Active & Live
+              </span>
+            </div>
+          ))}
+
+          {/* Upcoming Features */}
           {futureFeatures.map((feature) => (
             <div key={feature.title} className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
               <div className="flex items-start justify-between gap-3">
@@ -73,7 +95,7 @@ export function SettingsPanel() {
                   <p className="font-medium text-white">{feature.title}</p>
                   <p className="mt-2 text-sm leading-6 text-slate-400">{feature.description}</p>
                 </div>
-                <div className="rounded-full border border-sky-400/20 bg-sky-500/10 p-2 text-sky-300">
+                <div className="rounded-full border border-white/10 bg-slate-950 p-2 text-slate-400">
                   <LockIcon size={14} />
                 </div>
               </div>

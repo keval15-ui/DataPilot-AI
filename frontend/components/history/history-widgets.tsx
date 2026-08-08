@@ -238,7 +238,6 @@ export function HistoryPanel() {
             "Dashboard Builder",
             "AI Reports",
             "Team Workspaces",
-            "Notifications",
             "Authentication",
           ].map((feature) => (
             <div key={feature} className="flex items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 p-3">

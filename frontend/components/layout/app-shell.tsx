@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { HistoryIcon, LayoutDashboardIcon, MessageSquareTextIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, SparklesIcon, UploadIcon } from "@/components/ui/icons";
+import { BellIcon, HistoryIcon, LayoutDashboardIcon, MessageSquareTextIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, SparklesIcon, UploadIcon } from "@/components/ui/icons";
 import { useTheme } from "@/components/layout/theme-provider";
 
 const navItems = [
@@ -21,10 +21,62 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const { theme, toggleTheme } = useTheme();
 
+  // Notification states
+  interface Notification {
+    id: string;
+    title: string;
+    message: string;
+    read: boolean;
+    time: string;
+  }
+
+  const initializeNotifications = (): Notification[] => {
+    const stored = localStorage.getItem("notifications");
+    if (stored) {
+      return JSON.parse(stored);
+    } else {
+      const initial: Notification[] = [
+        { id: "welcome", title: "Welcome to DataPilot AI", message: "Start by uploading a dataset in the Upload page.", read: false, time: "Just now" },
+        { id: "cors-fix", title: "API Gateway Connected", message: "FastAPI endpoints configured and operational.", read: true, time: "1h ago" },
+        { id: "sqlite-fix", title: "SQLite Support Active", message: "Direct database uploads are now fully enabled.", read: true, time: "2h ago" },
+      ];
+      localStorage.setItem("notifications", JSON.stringify(initial));
+      return initial;
+    }
+  };
+
+  const [notifications, setNotifications] = useState<Notification[]>(initializeNotifications);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  useEffect(() => {
+
+    // Set up a listener for storage updates in same/other tabs
+    const handleStorageChange = () => {
+      const updated = localStorage.getItem("notifications");
+      if (updated) setNotifications(JSON.parse(updated));
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    const interval = setInterval(handleStorageChange, 3000);
+
+    return () => {
+      window.removeEventListener("storage", handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const markAllAsRead = () => {
+    const updated = notifications.map((n) => ({ ...n, read: true }));
+    setNotifications(updated);
+    localStorage.setItem("notifications", JSON.stringify(updated));
+  };
+
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.18),_transparent_32%),radial-gradient(circle_at_top_right,_rgba(167,139,250,0.2),_transparent_30%),linear-gradient(135deg,_#020617_0%,_#0f172a_45%,_#111827_100%)] text-slate-100">
+    <div className="min-h-screen app-bg">
       <div className="mx-auto flex min-h-screen max-w-7xl flex-col px-3 py-3 sm:px-4 lg:px-6">
-        <header className="mb-3 flex items-center justify-between rounded-full border border-white/10 bg-slate-950/70 px-4 py-3 shadow-[0_20px_80px_-30px_rgba(2,132,199,0.55)] backdrop-blur-xl">
+        <header className="relative z-50 mb-3 flex items-center justify-between rounded-full border border-white/10 bg-slate-950/70 px-4 py-3 shadow-[0_20px_80px_-30px_rgba(2,132,199,0.55)] backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <Link href="/" className="flex items-center gap-3">
               <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-500 to-violet-500 text-white shadow-lg shadow-sky-500/20">
@@ -40,6 +92,60 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <Button variant="ghost" size="sm" className="hidden md:inline-flex">
               Upgrade
             </Button>
+            
+            {/* Notification Dropdown Container */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowNotifications(!showNotifications)}
+                className="relative rounded-full border border-white/10 bg-white/10 p-2.5 text-slate-200 hover:bg-white/20"
+                aria-label="Toggle notifications"
+              >
+                <BellIcon size={18} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-sky-500 text-[10px] font-bold text-white animate-pulse">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {showNotifications && (
+                <div className="absolute right-0 mt-2 w-80 rounded-2xl border border-white/10 bg-slate-950/95 p-4 shadow-2xl backdrop-blur-xl z-50">
+                  <div className="flex items-center justify-between border-b border-white/5 pb-2 mb-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Notifications</p>
+                    {unreadCount > 0 && (
+                      <button onClick={markAllAsRead} className="text-[10px] text-sky-400 hover:underline bg-transparent border-none">
+                        Mark all as read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-60 overflow-y-auto space-y-2 pr-1">
+                    {notifications.length === 0 ? (
+                      <p className="text-xs text-slate-500 italic text-center py-4">No notifications.</p>
+                    ) : (
+                      notifications.map((n) => (
+                        <div 
+                          key={n.id} 
+                          className={cn(
+                            "p-2.5 rounded-xl border text-xs transition", 
+                            n.read 
+                              ? "border-white/5 bg-transparent" 
+                              : "border-sky-500/20 bg-sky-500/5 shadow-inner"
+                          )}
+                        >
+                          <div className="flex items-center justify-between font-semibold text-white">
+                            <p>{n.title}</p>
+                            <span className="text-[9px] text-slate-500 font-normal">{n.time}</span>
+                          </div>
+                          <p className="mt-1 text-slate-400 leading-relaxed">{n.message}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={toggleTheme}

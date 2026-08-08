@@ -1,8 +1,53 @@
 @import "tailwindcss";
 
 :root {
+  /* Light mode palette */
+  --background: #f8fafc;
+  --foreground: #0f172a;
+  --text-muted: #475569;
+  
+  --card-bg: rgba(255, 255, 255, 0.85);
+  --card-border: rgba(15, 23, 42, 0.08);
+  --card-shadow: 0 20px 80px -30px rgba(2, 132, 199, 0.15);
+  
+  --bg-gradient: radial-gradient(circle at top left, rgba(56, 189, 248, 0.12), transparent 35%),
+                  radial-gradient(circle at top right, rgba(167, 139, 250, 0.12), transparent 30%),
+                  linear-gradient(135deg, #f8fafc 0%, #f1f5f9 45%, #e2e8f0 100%);
+  
+  --input-bg: rgba(255, 255, 255, 0.9);
+  --input-border: rgba(15, 23, 42, 0.1);
+  --input-text: #0f172a;
+  
+  --pre-bg: #f1f5f9;
+  --pre-text: #0f172a;
+  --table-header-bg: #e2e8f0;
+  
+  color-scheme: light;
+}
+
+.dark {
+  /* Dark mode palette */
   --background: #020617;
   --foreground: #f8fafc;
+  --text-muted: #94a3b8;
+  
+  --card-bg: rgba(15, 23, 42, 0.7);
+  --card-border: rgba(255, 255, 255, 0.1);
+  --card-shadow: 0 20px 80px -30px rgba(2, 132, 199, 0.55);
+  
+  --bg-gradient: radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 32%),
+                  radial-gradient(circle at top right, rgba(167, 139, 250, 0.2), transparent 30%),
+                  linear-gradient(135deg, #020617 0%, #0f172a 45%, #111827 100%);
+  
+  --input-bg: rgba(15, 23, 42, 0.8);
+  --input-border: rgba(255, 255, 255, 0.1);
+  --input-text: #ffffff;
+  
+  --pre-bg: #020617;
+  --pre-text: #86efac; /* green-300 */
+  --table-header-bg: #1e293b;
+  
+  color-scheme: dark;
 }
 
 @theme inline {
@@ -13,7 +58,7 @@
 }
 
 html {
-  color-scheme: dark;
+  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 body {
@@ -35,4 +80,104 @@ a {
 
 button {
   cursor: pointer;
+}
+
+/* ==========================================
+   Global Theme-Aware Overrides
+   ========================================== */
+
+.app-bg {
+  background: var(--bg-gradient) !important;
+  color: var(--foreground) !important;
+  transition: background 0.3s ease, color 0.3s ease;
+}
+
+/* Header, Sidebar, Cards, Main Container */
+header,
+aside,
+main,
+.rounded-3xl.border,
+div[class*="rounded-3xl border border-white"] {
+  background-color: var(--card-bg) !important;
+  border-color: var(--card-border) !important;
+  box-shadow: var(--card-shadow) !important;
+  color: var(--foreground) !important;
+  transition: all 0.3s ease;
+}
+
+/* Specific text color classes */
+.text-white,
+h1, h2, h3, h4, h5, h6,
+.text-slate-100,
+.text-sky-100 {
+  color: var(--foreground) !important;
+}
+
+.text-slate-400,
+.text-slate-500,
+.text-slate-300 {
+  color: var(--text-muted) !important;
+}
+
+/* Sub-card widgets and list items */
+.rounded-2xl.border,
+div[class*="rounded-2xl border"] {
+  background-color: var(--input-bg) !important;
+  border-color: var(--card-border) !important;
+  color: var(--foreground) !important;
+}
+
+/* Code block pre elements */
+pre,
+code {
+  background-color: var(--pre-bg) !important;
+  color: var(--pre-text) !important;
+  border-color: var(--card-border) !important;
+}
+
+/* Chat text input and query selectors */
+input,
+select,
+textarea {
+  background-color: var(--input-bg) !important;
+  border-color: var(--input-border) !important;
+  color: var(--input-text) !important;
+}
+
+/* Table styling override */
+thead,
+.bg-slate-800,
+.bg-slate-900\/80 {
+  background-color: var(--table-header-bg) !important;
+}
+
+th {
+  color: var(--foreground) !important;
+}
+
+tr {
+  border-color: var(--card-border) !important;
+}
+
+/* Custom cards with custom bg opacity */
+.bg-slate-900,
+.bg-slate-950\/70,
+.bg-slate-900\/70,
+.bg-slate-900\/50,
+.bg-slate-950\/80,
+.bg-slate-950\/60 {
+  background-color: var(--card-bg) !important;
+}
+
+/* Assistant/User messages bubble overrides */
+div[class*="bg-slate-900 text-slate-200"] {
+  background-color: var(--input-bg) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--card-border);
+}
+
+div[class*="bg-sky-500/15"] {
+  background-color: rgba(14, 165, 233, 0.15) !important;
+  color: var(--foreground) !important;
+  border: 1px solid rgba(14, 165, 233, 0.3);
 }

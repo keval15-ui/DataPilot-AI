@@ -267,6 +267,18 @@ export function ChatPanel() {
             });
             localStorage.setItem("queries", JSON.stringify(queriesList.slice(0, 10)));
           }
+
+          // 3. Update notifications
+          const storedNotifs = localStorage.getItem("notifications");
+          const list = storedNotifs ? JSON.parse(storedNotifs) : [];
+          list.unshift({
+            id: `query-${Date.now()}`,
+            title: "Query Processed",
+            message: `Executed SQL successfully for: "${question.length > 25 ? question.slice(0, 25) + "..." : question}"`,
+            read: false,
+            time: "Just now"
+          });
+          localStorage.setItem("notifications", JSON.stringify(list.slice(0, 20)));
         } catch (e) {
           console.error("Failed to save conversation/query to localStorage", e);
         }
