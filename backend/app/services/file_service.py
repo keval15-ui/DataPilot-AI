@@ -11,7 +11,7 @@ BASE_DIR = os.path.dirname(
 
 UPLOAD_DIR = os.path.join(BASE_DIR, "uploads")
 
-ALLOWED_EXTENSIONS = {"csv", "xlsx", "xls"}
+ALLOWED_EXTENSIONS = {"csv", "xlsx", "xls", "db", "sqlite"}
 
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 
@@ -61,8 +61,10 @@ def save_uploaded_file(file: UploadFile):
 
     if extension == "csv":
         folder = os.path.join(UPLOAD_DIR, "csv")
-    else:
+    elif extension in ("xlsx", "xls"):
         folder = os.path.join(UPLOAD_DIR, "excel")
+    else:
+        folder = os.path.join(UPLOAD_DIR, "sqlite")
 
     os.makedirs(folder, exist_ok=True)
 
@@ -89,8 +91,20 @@ def read_dataset(file_path: str):
 
     if file_path.endswith(".csv"):
         df = pd.read_csv(file_path)
-    else:
+    elif file_path.endswith((".xlsx", ".xls")):
         df = pd.read_excel(file_path)
+    elif file_path.endswith((".db", ".sqlite")):
+        import sqlite3
+        conn = sqlite3.connect(file_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+        if not tables:
+            raise ValueError("No tables found in SQLite database.")
+        df = pd.read_sql_query(f"SELECT * FROM {tables[0]}", conn)
+        conn.close()
+    else:
+        raise ValueError("Unsupported file format.")
 
     # Replace NaN values
     df = df.fillna("")

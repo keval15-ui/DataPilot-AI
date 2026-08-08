@@ -1,9 +1,8 @@
-"use client";
-
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { getDataset } from "@/lib/utils/getDataset";
 import type { UploadResponse } from "@/types/upload";
+import { fetchDatasets } from "@/lib/services/api";
 
 type StatCardProps = {
   title: string;
@@ -45,12 +44,18 @@ export function ChartCard({ title, description, children }: ChartCardProps) {
 
 
 export function AnalyticsCharts() {
+  const [currentDataset, setCurrentDataset] = useState<any | null>(null);
+
+  useEffect(() => {
+    setCurrentDataset(getDataset());
+  }, []);
+
   return (
     <div className="grid gap-4 xl:grid-cols-2">
 
       <ChartCard
         title="AI Dataset Status"
-        description="Current status of your uploaded dataset"
+        description="Current status of your active dataset"
       >
         <div className="flex h-full flex-col justify-center space-y-4">
 
@@ -59,8 +64,8 @@ export function AnalyticsCharts() {
               Dataset
             </span>
 
-            <span className="font-medium text-white">
-              Health_Survey.xlsx
+            <span className="font-medium text-white truncate max-w-[200px]">
+              {currentDataset?.original_filename ?? "No active dataset"}
             </span>
           </div>
 
@@ -70,7 +75,7 @@ export function AnalyticsCharts() {
             </span>
 
             <span className="font-medium text-white">
-              41
+              {currentDataset?.rows?.toLocaleString() ?? "-"}
             </span>
           </div>
 
@@ -80,7 +85,7 @@ export function AnalyticsCharts() {
             </span>
 
             <span className="font-medium text-white">
-              24
+              {currentDataset?.columns ?? "-"}
             </span>
           </div>
 
@@ -89,8 +94,8 @@ export function AnalyticsCharts() {
               AI Status
             </span>
 
-            <span className="font-semibold text-emerald-400">
-              Ready ✅
+            <span className={`font-semibold ${currentDataset ? "text-emerald-400" : "text-amber-400"}`}>
+              {currentDataset ? "Ready ✅" : "No active dataset"}
             </span>
           </div>
 
@@ -103,74 +108,36 @@ export function AnalyticsCharts() {
       >
         <div className="space-y-3">
 
-          {[
-            "How many people have stomach pain?",
-            "Count patients by gender",
-            "Average age of patients",
-            "How many smokers are there?",
-            "Which disease occurs most frequently?",
-          ].map((question) => (
-            <button
-              key={question}
-              className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-left text-sm text-slate-300 transition hover:border-sky-500/40 hover:bg-slate-800/80"
-            >
-              <span>{question}</span>
+          {currentDataset ? (
+            [
+              `How many total rows are in the dataset?`,
+              "Count records by a unique label",
+              "Show column distributions",
+              "Which value appears most frequently?",
+              "Average or aggregate summary of columns",
+            ].map((question) => (
+              <a
+                key={question}
+                href={`/chat?dataset=${currentDataset.dataset_id}`}
+                className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-slate-900/70 px-4 py-3 text-left text-sm text-slate-300 transition hover:border-sky-500/40 hover:bg-slate-800/80"
+              >
+                <span>{question}</span>
 
-              <span className="text-sky-300">
-                →
-              </span>
-            </button>
-          ))}
-
-        </div>
-      </ChartCard>
-
-
-      <ChartCard
-        title="Upcoming Visualizations"
-        description="Charts generated automatically from your dataset"
-      >
-        <div className="grid h-full grid-cols-2 gap-4">
-
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-slate-900/70">
-            <span className="text-4xl">
-              📊
-            </span>
-
-            <p className="mt-3 text-sm text-slate-400">
-              Bar Chart
-            </p>
-          </div>
-
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-slate-900/70">
-            <span className="text-4xl">
-              🥧
-            </span>
-
-            <p className="mt-3 text-sm text-slate-400">
-              Pie Chart
-            </p>
-          </div>
-
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-slate-900/70">
-            <span className="text-4xl">
-              📈
-            </span>
-
-            <p className="mt-3 text-sm text-slate-400">
-              Line Chart
-            </p>
-          </div>
-
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/10 bg-slate-900/70">
-            <span className="text-4xl">
-              📉
-            </span>
-
-            <p className="mt-3 text-sm text-slate-400">
-              Histogram
-            </p>
-          </div>
+                <span className="text-sky-300">
+                  →
+                </span>
+              </a>
+            ))
+          ) : (
+            <div className="flex h-full flex-col justify-center items-center text-center p-4">
+              <p className="text-slate-400 text-sm italic">
+                Upload a dataset to see suggested analysis questions.
+              </p>
+              <a href="/upload" className="mt-4 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-600">
+                Go to Upload
+              </a>
+            </div>
+          )}
 
         </div>
       </ChartCard>
@@ -260,57 +227,87 @@ export function ActivityTable() {
 
 export function DatasetList() {
   const [mounted, setMounted] = useState(false);
-
-  const [dataset, setDataset] =
-    useState<UploadResponse | null>(null);
+  const [datasets, setDatasets] = useState<any[]>([]);
+  const [currentDataset, setCurrentDataset] = useState<any | null>(null);
 
   useEffect(() => {
     setMounted(true);
-    setDataset(getDataset());
+    setCurrentDataset(getDataset());
+    fetchDatasets()
+      .then((data) => {
+        setDatasets(data);
+      })
+      .catch((err) => {
+        console.error("Failed to fetch datasets", err);
+      });
   }, []);
 
   if (!mounted) {
     return (
       <Card>
         <div className="p-6 text-slate-400">
-          Loading dataset...
+          Loading datasets...
         </div>
       </Card>
     );
   }
 
-    
-
   return (
-    <Card>
+    <Card className="flex flex-col h-[350px]">
       <div className="mb-4">
         <h3 className="text-lg font-semibold text-white">
-          Current Dataset
+          Ingested Datasets
         </h3>
 
         <p className="mt-1 text-sm text-slate-400">
-          Dataset currently loaded into DataPilot AI
+          All datasets successfully registered in Supabase
         </p>
       </div>
 
-      <div className="space-y-3">
-        <div className="rounded-2xl border border-white/10 bg-slate-900/70 p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="font-medium text-white">
-                {dataset?.original_filename ?? "No Dataset"}
-              </p>
-
-              <p className="mt-1 text-sm text-slate-400">
-                {dataset?.rows ?? "-"} Rows • {dataset?.columns ?? "-"} Columns
-              </p>
-            </div>
-
-            <span className="rounded-full bg-emerald-500/10 px-3 py-1 text-sm text-emerald-300">
-              {dataset ? "Ready" : "Waiting"}
-            </span>
+      <div className="flex-1 space-y-3 overflow-y-auto pr-1">
+        {datasets.length === 0 ? (
+          <div className="text-slate-500 text-sm italic p-4 text-center">
+            No datasets uploaded yet. Click "Upload Dataset" to get started.
           </div>
-        </div>
+        ) : (
+          datasets.map((d) => {
+            const isCurrent = currentDataset?.dataset_id === d.dataset_id;
+            return (
+              <div 
+                key={d.dataset_id} 
+                className={`rounded-2xl border p-4 transition-all ${
+                  isCurrent 
+                    ? "border-sky-500/40 bg-sky-950/20" 
+                    : "border-white/10 bg-slate-900/50 hover:bg-slate-800/40"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-white truncate">
+                      {d.original_filename}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {d.rows?.toLocaleString() ?? 0} Rows • {d.columns ?? 0} Columns
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isCurrent && (
+                      <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-400">
+                        Active
+                      </span>
+                    )}
+                    <a 
+                      href={`/chat?dataset=${d.dataset_id}`}
+                      className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300 hover:bg-emerald-500/20 transition"
+                    >
+                      Chat →
+                    </a>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
       </div>
     </Card>
   );

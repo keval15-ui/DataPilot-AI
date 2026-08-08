@@ -93,3 +93,27 @@ export async function uploadDataset(
 
   return response.json();
 }
+
+/* -------------------------
+   Dashboard & Dataset lists
+-------------------------- */
+
+export interface DashboardStats {
+  total_datasets: number;
+  total_rows: number;
+  unique_sources: number;
+  queries_executed: number;
+  ai_insights: number;
+}
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  return request<DashboardStats>("/datasets/stats");
+}
+
+export async function fetchDatasets(): Promise<any[]> {
+  return request<any[]>("/datasets");
+}
+
+export async function fetchDatasetById(datasetId: string): Promise<any> {
+  return request<any>(`/datasets/${datasetId}`);
+}

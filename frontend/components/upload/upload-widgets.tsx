@@ -39,22 +39,22 @@ export function UploadPanel() {
       const response = await uploadDataset(file);
       // router.push(`/chat?dataset=${response.dataset_id}`);
 
-console.log("Upload Response:", response);
+      console.log("Upload Response:", response);
 
       setProgress(100);
 
       setDataset(response);
 
+      if (typeof window !== "undefined") {
+        localStorage.setItem("dataset", JSON.stringify(response));
+      }
+
       setRecentUploads((prev) => [
         response,
         ...prev,
       ]);
-setError("");
-
-router.push(`/chat?dataset=${response.dataset_id}`);
-     ;
-
       setError("");
+      router.push(`/chat?dataset=${response.dataset_id}`);
     } catch (err) {
       setError("Upload failed.");
       console.error(err);

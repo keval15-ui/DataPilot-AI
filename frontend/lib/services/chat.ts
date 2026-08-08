@@ -1,8 +1,16 @@
 import { request } from "./api";
 
+export interface ChartConfig {
+  chart_type: string;
+  x_key: string;
+  y_keys: string[];
+}
+
 export interface ChatResponse {
   sql: string;
   result: Record<string, unknown>[];
+  explanation?: string;
+  chart_config?: ChartConfig;
 }
 
 export async function askAI(

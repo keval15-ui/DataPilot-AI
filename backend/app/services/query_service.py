@@ -17,6 +17,17 @@ def execute_query(
     elif file_path.endswith((".xlsx", ".xls")):
         df = pd.read_excel(file_path)
 
+    elif file_path.endswith((".db", ".sqlite")):
+        import sqlite3
+        conn = sqlite3.connect(file_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+        if not tables:
+            raise ValueError("No tables found in SQLite database.")
+        df = pd.read_sql_query(f"SELECT * FROM {tables[0]}", conn)
+        conn.close()
+
     else:
         raise ValueError("Unsupported file format.")
 

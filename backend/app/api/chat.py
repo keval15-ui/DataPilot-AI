@@ -11,6 +11,8 @@ from app.llm.groq_client import generate_sql
 
 from app.services.query_service import execute_query
 
+from app.services.analytics_service import generate_analytics_and_chart
+
 
 router = APIRouter(
     prefix="/chat",
@@ -37,7 +39,7 @@ async def chat(request: ChatRequest):
     )
 
     print("\n==============================")
-    print("🚀 NEW CHAT REQUEST")
+    print("[START] NEW CHAT REQUEST")
     print("==============================")
     print("Question:")
     print(request.question)
@@ -61,13 +63,13 @@ async def chat(request: ChatRequest):
             sql=sql,
         )
 
-        print("✅ SQL Executed Successfully")
+        print("[SUCCESS] SQL Executed Successfully")
         print("Returned Rows:", len(result))
         print()
 
     except Exception as e:
 
-        print("\n❌ SQL EXECUTION FAILED")
+        print("\n[ERROR] SQL EXECUTION FAILED")
         print("--------------------------------")
         print(str(e))
         print("--------------------------------\n")
@@ -77,7 +79,16 @@ async def chat(request: ChatRequest):
             detail=f"SQL Execution Failed: {str(e)}",
         )
 
+    # Generate explanation and chart config
+    analytics = generate_analytics_and_chart(
+        question=request.question,
+        sql=sql,
+        result=result,
+    )
+
     return ChatResponse(
         sql=sql,
         result=result,
+        explanation=analytics["explanation"],
+        chart_config=analytics,
     )
