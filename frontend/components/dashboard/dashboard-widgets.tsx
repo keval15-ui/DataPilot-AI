@@ -297,6 +297,12 @@ export function DatasetList() {
                       </span>
                     )}
                     <a 
+                      href={`/quality?dataset=${d.dataset_id}`}
+                      className="rounded-full bg-sky-500/10 px-3 py-1 text-xs text-sky-300 hover:bg-sky-500/20 transition"
+                    >
+                      Quality
+                    </a>
+                    <a 
                       href={`/chat?dataset=${d.dataset_id}`}
                       className="rounded-full bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300 hover:bg-emerald-500/20 transition"
                     >
@@ -314,6 +320,12 @@ export function DatasetList() {
 }
 
 export function QuickActions() {
+  const [currentDataset, setCurrentDataset] = useState<any | null>(null);
+
+  useEffect(() => {
+    setCurrentDataset(getDataset());
+  }, []);
+
   const actions = [
     {
       title: "Upload Dataset",
@@ -323,7 +335,7 @@ export function QuickActions() {
     {
       title: "Ask AI",
       description: "Chat with your dataset",
-      link: "/chat",
+      link: currentDataset ? `/chat?dataset=${currentDataset.dataset_id}` : "/chat",
     },
     {
       title: "View Dashboard",

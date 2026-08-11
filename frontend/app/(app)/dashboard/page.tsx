@@ -8,23 +8,24 @@ import { PageShell } from "@/components/ui/page-shell";
 import { Section } from "@/components/ui/section";
 import { fetchDashboardStats, type DashboardStats } from "@/lib/services/api";
 import { getDataset } from "@/lib/utils/getDataset";
+import type { UploadResponse } from "@/types/upload";
+
+const steps = [
+  "Analyzing schema structure...",
+  "Executing summary analytics with DuckDB...",
+  "Drafting AI executive recommendations...",
+  "Finalizing report compilation..."
+];
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
-  const [currentDataset, setCurrentDataset] = useState<any | null>(null);
+  const [currentDataset] = useState<UploadResponse | null>(() => getDataset());
   
   // Modal states
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportStep, setReportStep] = useState(0);
-
-  const steps = [
-    "Analyzing schema structure...",
-    "Executing summary analytics with DuckDB...",
-    "Drafting AI executive recommendations...",
-    "Finalizing report compilation..."
-  ];
 
   useEffect(() => {
     fetchDashboardStats()
@@ -36,8 +37,6 @@ export default function DashboardPage() {
         console.error("Failed to fetch dashboard stats", err);
         setLoading(false);
       });
-
-    setCurrentDataset(getDataset());
   }, []);
 
   const handleOpenReport = () => {
@@ -69,37 +68,12 @@ export default function DashboardPage() {
 
     const win = window.open("", "_blank");
     if (!win) return;
+    // Copy current page styles (external stylesheets and inline styles)
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style'))
+      .map((n) => (n as HTMLElement).outerHTML)
+      .join('\n');
 
-    win.document.write(`
-      <html>
-        <head>
-          <title>Executive Analytics Report - DataPilot AI</title>
-          <style>
-            body { font-family: system-ui, -apple-system, sans-serif; color: #0f172a; padding: 40px; line-height: 1.6; }
-            h1 { font-size: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; margin-bottom: 24px; color: #1e3a8a; }
-            h2 { font-size: 18px; margin-top: 24px; color: #1e40af; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; }
-            .grid { display: grid; grid-template-cols: 1fr 1fr; gap: 16px; margin: 20px 0; }
-            .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; background: #f8fafc; }
-            .meta-label { font-size: 12px; color: #64748b; text-transform: uppercase; font-weight: bold; }
-            .meta-value { font-size: 20px; font-weight: bold; color: #0f172a; margin-top: 4px; }
-            table { width: 100%; border-collapse: collapse; margin-top: 12px; }
-            th { background: #f1f5f9; text-align: left; padding: 8px; font-size: 13px; color: #475569; border: 1px solid #cbd5e1; }
-            td { padding: 8px; font-size: 13px; border: 1px solid #cbd5e1; }
-            ul { padding-left: 20px; }
-            li { margin-bottom: 8px; }
-          </style>
-        </head>
-        <body>
-          ${printContent.innerHTML}
-          <script>
-            window.onload = function() {
-              window.print();
-              window.close();
-            }
-          </script>
-        </body>
-      </html>
-    `);
+    win.document.write(`<!doctype html><html><head><title>Executive Analytics Report - DataPilot AI</title>${styles}</head><body>${printContent.innerHTML}<script>window.onload=function(){window.print();window.close();}</script></body></html>`);
     win.document.close();
   };
 
@@ -180,7 +154,7 @@ export default function DashboardPage() {
               {!currentDataset ? (
                 <div className="py-8 text-center">
                   <p className="text-slate-400">No active dataset selected for your current session.</p>
-                  <p className="text-xs text-slate-500 mt-2">Please upload a dataset or click "Chat" on an ingested dataset to select it first.</p>
+                  <p className="text-xs text-slate-500 mt-2">Please upload a dataset or click &quot;Chat&quot; on an ingested dataset to select it first.</p>
                   <div className="mt-6">
                     <Button onClick={() => setIsModalOpen(false)}>Close</Button>
                   </div>
@@ -245,7 +219,7 @@ export default function DashboardPage() {
                             </tr>
                           </thead>
                           <tbody>
-                            {currentDataset.column_info?.map((col: any, idx: number) => (
+                            {currentDataset.column_info?.map((col: { name: string; datatype: string }, idx: number) => (
                               <tr key={idx} className="border-t border-white/5 bg-slate-900/50">
                                 <td className="px-3 py-2 font-mono text-sky-300">{col.name}</td>
                                 <td className="px-3 py-2 text-slate-400">{col.datatype}</td>
@@ -260,7 +234,7 @@ export default function DashboardPage() {
                       <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-2">AI Optimization Recommendations</h2>
                       <ul className="list-disc pl-5 text-sm space-y-2 text-slate-300">
                         <li><strong>Run aggregations:</strong> Utilize the Ask AI chat to count or group rows by specific label columns like string types to identify distributions.</li>
-                        <li><strong>Time-series check:</strong> If date or timestamp columns are present, prompt the AI with: <em>"Generate a line chart of trends over time."</em></li>
+                        <li><strong>Time-series check:</strong> If date or timestamp columns are present, prompt the AI with: <em>&quot;Generate a line chart of trends over time.&quot;</em></li>
                         <li><strong>Data clean-up:</strong> The ingestion engine automatically resolved null values to empty strings. Ensure no outliers skew statistical means.</li>
                       </ul>
                     </div>

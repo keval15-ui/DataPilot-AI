@@ -1,4 +1,4 @@
-import duckdb
+import sqlite3
 import pandas as pd
 
 
@@ -7,43 +7,68 @@ def execute_query(
     sql: str,
 ):
     """
-    Execute SQL on an uploaded CSV or Excel file.
+    Execute SQL on an uploaded CSV, Excel, or SQLite file.
+
+    CSV and Excel files are loaded into a Pandas DataFrame,
+    then registered as an in-memory SQLite table named `dataset`.
+
+    SQLite database files are queried directly.
     """
 
-    # Load dataset
-    if file_path.endswith(".csv"):
-        df = pd.read_csv(file_path)
+    # ==========================================
+    # SQLite Database File
+    # ==========================================
 
-    elif file_path.endswith((".xlsx", ".xls")):
-        df = pd.read_excel(file_path)
-
-    elif file_path.endswith((".db", ".sqlite")):
-        import sqlite3
+    if file_path.endswith((".db", ".sqlite", ".sqlite3")):
         conn = sqlite3.connect(file_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
-        tables = [row[0] for row in cursor.fetchall()]
-        if not tables:
-            raise ValueError("No tables found in SQLite database.")
-        df = pd.read_sql_query(f"SELECT * FROM {tables[0]}", conn)
-        conn.close()
+
+        try:
+            result = pd.read_sql_query(sql, conn)
+        finally:
+            conn.close()
+
+    # ==========================================
+    # CSV / Excel
+    # ==========================================
 
     else:
-        raise ValueError("Unsupported file format.")
+        # Load dataset
+        if file_path.endswith(".csv"):
+            df = pd.read_csv(file_path)
 
-    # Create in-memory DuckDB connection
-    conn = duckdb.connect()
+        elif file_path.endswith((".xlsx", ".xls")):
+            df = pd.read_excel(file_path)
 
-    # Register dataframe as table
-    conn.register("dataset", df)
+        else:
+            raise ValueError(
+                "Unsupported file format."
+            )
 
-    # Execute SQL
-    result = conn.execute(sql).fetchdf()
+        # Create in-memory SQLite database
+        conn = sqlite3.connect(":memory:")
 
-    # Close connection
-    conn.close()
+        try:
+            # Register DataFrame as SQLite table
+            df.to_sql(
+                "dataset",
+                conn,
+                index=False,
+                if_exists="replace",
+            )
 
-    # Return JSON
-    return result.fillna("").to_dict(
+            # Execute SQL
+            result = pd.read_sql_query(
+                sql,
+                conn,
+            )
+
+        finally:
+            conn.close()
+
+    # Replace NaN values
+    result = result.fillna("")
+
+    # Return JSON-compatible records
+    return result.to_dict(
         orient="records"
     )

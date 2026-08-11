@@ -71,7 +71,7 @@ export function UploadPanel() {
         ...prev,
       ]);
       setError("");
-      router.push(`/chat?dataset=${response.dataset_id}`);
+      router.push(`/quality?dataset=${response.dataset_id}`);
     } catch (err) {
       let errorMessage = "Upload failed.";
       if (err instanceof Error) {

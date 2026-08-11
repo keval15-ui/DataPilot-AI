@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.upload import router as upload_router
 from app.api.chat import router as chat_router
 from app.api.dataset import router as dataset_router
+from app.api.quality import router as quality_router
 
 app = FastAPI(title="DataPilot AI API")
 
@@ -17,6 +18,7 @@ app.add_middleware(
 app.include_router(upload_router)
 app.include_router(chat_router)
 app.include_router(dataset_router)
+app.include_router(quality_router)
 
 @app.get("/")
 def root():

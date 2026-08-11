@@ -5,12 +5,13 @@ import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { BellIcon, HistoryIcon, LayoutDashboardIcon, MessageSquareTextIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, SparklesIcon, UploadIcon } from "@/components/ui/icons";
+import { BellIcon, HistoryIcon, LayoutDashboardIcon, MessageSquareTextIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, SettingsIcon, SparklesIcon, UploadIcon, ShieldCheckIcon } from "@/components/ui/icons";
 import { useTheme } from "@/components/layout/theme-provider";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboardIcon },
   { href: "/upload", label: "Upload", icon: UploadIcon },
+  { href: "/quality", label: "Data Quality", icon: ShieldCheckIcon },
   { href: "/chat", label: "Chat", icon: MessageSquareTextIcon },
   { href: "/history", label: "History", icon: HistoryIcon },
   { href: "/settings", label: "Settings", icon: SettingsIcon },
@@ -20,6 +21,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const [activeDatasetId, setActiveDatasetId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      if (typeof window !== "undefined") {
+        const searchParams = new URLSearchParams(window.location.search);
+        const urlDatasetId = searchParams.get("dataset");
+        if (urlDatasetId) {
+          setActiveDatasetId(urlDatasetId);
+        } else {
+          const stored = window.localStorage.getItem("dataset");
+          if (stored) {
+            try {
+              const parsed = JSON.parse(stored);
+              if (parsed?.dataset_id) {
+                setActiveDatasetId(parsed.dataset_id);
+              }
+            } catch (e) {
+              console.error("Failed to parse dataset from localStorage", e);
+            }
+          } else {
+            setActiveDatasetId(null);
+          }
+        }
+      }
+    };
+
+    handleLocationChange();
+
+    window.addEventListener("popstate", handleLocationChange);
+    const interval = setInterval(handleLocationChange, 1000);
+
+    return () => {
+      window.removeEventListener("popstate", handleLocationChange);
+      clearInterval(interval);
+    };
+  }, [pathname]);
 
   // Notification states
   interface Notification {
@@ -30,27 +68,27 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     time: string;
   }
 
-  const [notifications, setNotifications] = useState<Notification[]>(() => {
-    if (typeof window === "undefined") return [];
-
-    const stored = window.localStorage.getItem("notifications");
-    if (stored) {
-      return JSON.parse(stored);
-    }
-
-    const initial: Notification[] = [
-      { id: "welcome", title: "Welcome to DataPilot AI", message: "Start by uploading a dataset in the Upload page.", read: false, time: "Just now" },
-      { id: "cors-fix", title: "API Gateway Connected", message: "FastAPI endpoints configured and operational.", read: true, time: "1h ago" },
-      { id: "sqlite-fix", title: "SQLite Support Active", message: "Direct database uploads are now fully enabled.", read: true, time: "2h ago" },
-    ];
-
-    window.localStorage.setItem("notifications", JSON.stringify(initial));
-    return initial;
-  });
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
-    // Notifications are initialized lazily from localStorage.
+    // Notifications are initialized lazily from localStorage on mount.
+    const stored = window.localStorage.getItem("notifications");
+    if (stored) {
+      try {
+        setNotifications(JSON.parse(stored));
+      } catch (e) {
+        console.error("Failed to parse notifications from localStorage", e);
+      }
+    } else {
+      const initial: Notification[] = [
+        { id: "welcome", title: "Welcome to DataPilot AI", message: "Start by uploading a dataset in the Upload page.", read: false, time: "Just now" },
+        { id: "cors-fix", title: "API Gateway Connected", message: "FastAPI endpoints configured and operational.", read: true, time: "1h ago" },
+        { id: "sqlite-fix", title: "SQLite Support Active", message: "Direct database uploads are now fully enabled.", read: true, time: "2h ago" },
+      ];
+      window.localStorage.setItem("notifications", JSON.stringify(initial));
+      setNotifications(initial);
+    }
   }, []);
 
   useEffect(() => {
@@ -184,10 +222,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const active = pathname === item.href;
+                const baseHref = item.href;
+                const href = (baseHref === "/quality" || baseHref === "/chat") && activeDatasetId
+                  ? `${baseHref}?dataset=${activeDatasetId}`
+                  : baseHref;
+
                 return (
                   <Link
                     key={item.href}
-                    href={item.href}
+                    href={href}
                     className={cn(
                       "flex items-center gap-3 rounded-2xl px-3 py-3 text-sm transition-all duration-200",
                       active
