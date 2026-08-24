@@ -125,3 +125,13 @@ export async function fetchDatasets(): Promise<any[]> {
 export async function fetchDatasetById(datasetId: string): Promise<any> {
   return request<any>(`/datasets/${datasetId}`);
 }
+
+export async function deleteDataset(datasetId: string): Promise<any> {
+  return request<any>(`/datasets/${datasetId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchExecutiveReport(datasetId: string): Promise<any> {
+  return request<any>(`/datasets/${datasetId}/report`);
+}

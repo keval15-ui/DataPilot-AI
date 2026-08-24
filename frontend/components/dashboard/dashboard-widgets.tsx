@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { getDataset } from "@/lib/utils/getDataset";
 import type { UploadResponse } from "@/types/upload";
-import { fetchDatasets } from "@/lib/services/api";
+import { fetchDatasets, deleteDataset } from "@/lib/services/api";
 
 type StatCardProps = {
   title: string;
@@ -230,6 +230,10 @@ export function DatasetList() {
   const [datasets, setDatasets] = useState<any[]>([]);
   const [currentDataset, setCurrentDataset] = useState<any | null>(null);
 
+  const [deleteConfirmDataset, setDeleteConfirmDataset] = useState<any | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   useEffect(() => {
     setMounted(true);
     setCurrentDataset(getDataset());
@@ -241,6 +245,42 @@ export function DatasetList() {
         console.error("Failed to fetch datasets", err);
       });
   }, []);
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirmDataset) return;
+    const targetId = deleteConfirmDataset.dataset_id;
+    setDeletingId(targetId);
+    setDeleteError(null);
+
+    try {
+      await deleteDataset(targetId);
+
+      // Remove from list
+      setDatasets((prev) => prev.filter((d) => d.dataset_id !== targetId));
+
+      // Handle active dataset cleanup
+      if (typeof window !== "undefined") {
+        const stored = localStorage.getItem("dataset");
+        if (stored) {
+          try {
+            const parsed = JSON.parse(stored);
+            if (parsed.dataset_id === targetId) {
+              localStorage.removeItem("dataset");
+              setCurrentDataset(null);
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+      }
+
+      setDeleteConfirmDataset(null);
+    } catch (err: any) {
+      setDeleteError(err.message || "Failed to delete dataset.");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   if (!mounted) {
     return (
@@ -282,7 +322,7 @@ export function DatasetList() {
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <div className="min-w-0 flex-1">
+                  <div className="min-w-0 flex-1 pr-2">
                     <p className="font-medium text-white truncate">
                       {d.original_filename}
                     </p>
@@ -290,7 +330,7 @@ export function DatasetList() {
                       {d.rows?.toLocaleString() ?? 0} Rows • {d.columns ?? 0} Columns
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     {isCurrent && (
                       <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-sky-400">
                         Active
@@ -308,6 +348,16 @@ export function DatasetList() {
                     >
                       Chat →
                     </a>
+                    <button 
+                      onClick={() => {
+                        setDeleteConfirmDataset(d);
+                        setDeleteError(null);
+                      }}
+                      disabled={deletingId !== null}
+                      className="rounded-full bg-rose-500/10 px-3 py-1 text-xs text-rose-300 hover:bg-rose-500/20 transition disabled:opacity-50"
+                    >
+                      Delete
+                    </button>
                   </div>
                 </div>
               </div>
@@ -315,6 +365,39 @@ export function DatasetList() {
           })
         )}
       </div>
+
+      {deleteConfirmDataset && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+          <div className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-slate-900 p-6 shadow-2xl">
+            <h3 className="text-lg font-semibold text-white">Delete dataset?</h3>
+            <p className="mt-2 text-sm text-slate-400 leading-relaxed">
+              This will permanently remove the uploaded dataset "{deleteConfirmDataset.original_filename}" and its stored metadata. This action cannot be undone.
+            </p>
+            {deleteError && (
+              <p className="mt-3 text-xs text-rose-400">{deleteError}</p>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setDeleteConfirmDataset(null);
+                  setDeleteError(null);
+                }}
+                disabled={deletingId !== null}
+                className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-sm font-semibold text-slate-100 hover:bg-white/20 transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deletingId !== null}
+                className="rounded-full bg-rose-500 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-600 transition disabled:opacity-50"
+              >
+                {deletingId ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

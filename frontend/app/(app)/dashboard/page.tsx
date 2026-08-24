@@ -6,13 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Container } from "@/components/ui/container";
 import { PageShell } from "@/components/ui/page-shell";
 import { Section } from "@/components/ui/section";
-import { fetchDashboardStats, type DashboardStats } from "@/lib/services/api";
+import { fetchDashboardStats, fetchExecutiveReport, type DashboardStats } from "@/lib/services/api";
 import { getDataset } from "@/lib/utils/getDataset";
 import type { UploadResponse } from "@/types/upload";
 
 const steps = [
   "Analyzing schema structure...",
-  "Executing summary analytics with DuckDB...",
+  "Executing summary analytics with SQLite...",
   "Drafting AI executive recommendations...",
   "Finalizing report compilation..."
 ];
@@ -26,6 +26,8 @@ export default function DashboardPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportStep, setReportStep] = useState(0);
+  const [reportData, setReportData] = useState<any | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboardStats()
@@ -39,28 +41,36 @@ export default function DashboardPage() {
       });
   }, []);
 
-  const handleOpenReport = () => {
+  const handleOpenReport = async () => {
+    if (!currentDataset) {
+      setIsModalOpen(true);
+      return;
+    }
     setIsModalOpen(true);
     setReportLoading(true);
     setReportStep(0);
-  };
+    setReportError(null);
+    setReportData(null);
 
-  useEffect(() => {
-    if (!reportLoading) return;
-
-    const timer = setInterval(() => {
+    const stepInterval = setInterval(() => {
       setReportStep((prev) => {
-        if (prev >= steps.length - 1) {
-          clearInterval(timer);
-          setReportLoading(false);
-          return prev;
+        if (prev < steps.length - 1) {
+          return prev + 1;
         }
-        return prev + 1;
+        return prev;
       });
     }, 450);
 
-    return () => clearInterval(timer);
-  }, [reportLoading]);
+    try {
+      const data = await fetchExecutiveReport(currentDataset.dataset_id);
+      setReportData(data);
+    } catch (err: any) {
+      setReportError(err.message || "Failed to generate AI executive report.");
+    } finally {
+      clearInterval(stepInterval);
+      setReportLoading(false);
+    }
+  };
 
   const handlePrint = () => {
     const printContent = document.getElementById("printable-report");
@@ -75,6 +85,13 @@ export default function DashboardPage() {
 
     win.document.write(`<!doctype html><html><head><title>Executive Analytics Report - DataPilot AI</title>${styles}</head><body>${printContent.innerHTML}<script>window.onload=function(){window.print();window.close();}</script></body></html>`);
     win.document.close();
+  };
+
+  const handleQuestionClick = (question: string) => {
+    if (typeof window !== "undefined" && currentDataset) {
+      localStorage.setItem("chat_draft_question", question);
+      window.location.href = `/chat?dataset=${currentDataset.dataset_id}`;
+    }
   };
 
   const formatRows = (rows: number) => {
@@ -177,65 +194,238 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
-              ) : (
+              ) : reportError ? (
+                <div className="py-8 text-center space-y-4">
+                  <span className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-rose-500/10 text-rose-400 text-xl font-bold">
+                    ⚠️
+                  </span>
+                  <h4 className="text-white font-medium">Failed to generate report</h4>
+                  <p className="text-xs text-slate-400 max-w-md mx-auto">{reportError}</p>
+                  <div className="flex justify-center gap-3 mt-4">
+                    <Button variant="secondary" onClick={() => setIsModalOpen(false)}>Close</Button>
+                    <Button onClick={handleOpenReport}>Retry</Button>
+                  </div>
+                </div>
+              ) : reportData ? (
                 <div className="space-y-6 text-slate-300">
                   
                   {/* Printable report container */}
-                  <div id="printable-report" className="space-y-6">
+                  <div id="printable-report" className="space-y-8">
                     <div className="border-b border-white/5 pb-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-400">DataPilot AI Summary</p>
-                      <h1 className="text-2xl font-bold text-white mt-1">Executive Summary: {currentDataset.original_filename}</h1>
-                      <p className="text-sm text-slate-400 mt-1">Generated dynamically on {new Date().toLocaleDateString()}</p>
+                      <h1 className="text-2xl font-bold text-white mt-1">Executive Summary: {reportData.overview.filename}</h1>
+                      <p className="text-sm text-slate-400 mt-1">Generated dynamically on {new Date(reportData.overview.timestamp).toLocaleDateString()}</p>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
-                        <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Total Rows</span>
-                        <p className="text-2xl font-bold text-white mt-1">{currentDataset.rows?.toLocaleString() ?? "-"}</p>
-                      </div>
-                      <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
-                        <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Total Columns</span>
-                        <p className="text-2xl font-bold text-white mt-1">{currentDataset.columns ?? "-"}</p>
+                    {/* Section 1: Overview Cards */}
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-semibold text-white uppercase tracking-wider">Dataset Overview</h2>
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Total Rows</span>
+                          <p className="text-2xl font-bold text-white mt-1">{reportData.overview.rows?.toLocaleString() ?? "-"}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Total Columns</span>
+                          <p className="text-2xl font-bold text-white mt-1">{reportData.overview.columns ?? "-"}</p>
+                        </div>
+                        <div className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                          <span className="text-[10px] uppercase tracking-[0.2em] text-slate-500 font-bold">Quality Score</span>
+                          <p className="text-2xl font-bold text-emerald-400 mt-1">{reportData.quality.score}/100</p>
+                        </div>
                       </div>
                     </div>
 
-                    <div>
-                      <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-2">Descriptive Synthesis</h2>
+                    <hr className="border-white/5" />
+
+                    {/* Section 2: Data Quality Details */}
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-semibold text-white uppercase tracking-wider">Data Quality Summary</h2>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-3">
+                          <p className="text-xs text-slate-400">Quality Status</p>
+                          <p className={`text-sm font-medium mt-1 uppercase ${
+                            reportData.quality.status === "clean" ? "text-emerald-400" :
+                            reportData.quality.status === "warning" ? "text-amber-400" : "text-rose-400"
+                          }`}>{reportData.quality.status.replace("_", " ")}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-3">
+                          <p className="text-xs text-slate-400">Total Missing Values</p>
+                          <p className="text-sm font-medium text-white mt-1">{reportData.quality.total_missing?.toLocaleString() ?? 0}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-3">
+                          <p className="text-xs text-slate-400">Duplicate Rows</p>
+                          <p className="text-sm font-medium text-white mt-1">{reportData.quality.duplicate_rows ?? 0}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-3">
+                          <p className="text-xs text-slate-400">Columns with Missing Data</p>
+                          <p className="text-sm font-medium text-white mt-1">{reportData.quality.columns_with_missing_count ?? 0}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-3">
+                          <p className="text-xs text-slate-400">Constant Columns</p>
+                          <p className="text-sm font-medium text-white mt-1">{reportData.quality.constant_columns_count ?? 0}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-3">
+                          <p className="text-xs text-slate-400">Schema Compatibility Issues</p>
+                          <p className="text-sm font-medium text-white mt-1">{reportData.quality.schema_issues ?? 0}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <hr className="border-white/5" />
+
+                    {/* Section 3: Dataset Profile */}
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-semibold text-white uppercase tracking-wider">Dataset Profile</h2>
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-3">
+                          <p className="text-xs text-slate-400">Numerical Columns</p>
+                          <p className="text-sm font-medium text-white mt-1">{reportData.profile.numerical_columns_count ?? 0}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-3">
+                          <p className="text-xs text-slate-400">Categorical Columns</p>
+                          <p className="text-sm font-medium text-white mt-1">{reportData.profile.categorical_columns_count ?? 0}</p>
+                        </div>
+                        <div className="rounded-xl border border-white/5 bg-slate-900/40 p-3">
+                          <p className="text-xs text-slate-400">Date/Time Columns</p>
+                          <p className="text-sm font-medium text-white mt-1">{reportData.profile.date_columns_count ?? 0}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <hr className="border-white/5" />
+
+                    {/* Section 4 & 7: Numerical Summary Table */}
+                    {reportData.numerical_summary && reportData.numerical_summary.length > 0 && (
+                      <div className="space-y-3">
+                        <h2 className="text-xs font-semibold text-white uppercase tracking-wider">Numerical Summary</h2>
+                        <div className="overflow-x-auto rounded-xl border border-white/10">
+                          <table className="min-w-full text-left text-xs">
+                            <thead className="bg-slate-950/80 text-slate-400">
+                              <tr>
+                                <th className="px-3 py-2 font-semibold">Column</th>
+                                <th className="px-3 py-2 font-semibold">Count</th>
+                                <th className="px-3 py-2 font-semibold">Mean</th>
+                                <th className="px-3 py-2 font-semibold">Median</th>
+                                <th className="px-3 py-2 font-semibold">Min</th>
+                                <th className="px-3 py-2 font-semibold">Max</th>
+                                <th className="px-3 py-2 font-semibold">Std Dev</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {reportData.numerical_summary.map((col: any, idx: number) => (
+                                <tr key={idx} className="border-t border-white/5 bg-slate-900/50">
+                                  <td className="px-3 py-2 font-mono text-sky-300">{col.column}</td>
+                                  <td className="px-3 py-2 text-slate-300">{col.count}</td>
+                                  <td className="px-3 py-2 text-slate-300">{col.mean !== null ? col.mean : "-"}</td>
+                                  <td className="px-3 py-2 text-slate-300">{col.median !== null ? col.median : "-"}</td>
+                                  <td className="px-3 py-2 text-slate-300">{col.min !== null ? col.min : "-"}</td>
+                                  <td className="px-3 py-2 text-slate-300">{col.max !== null ? col.max : "-"}</td>
+                                  <td className="px-3 py-2 text-slate-300">{col.std !== null ? col.std : "-"}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    <hr className="border-white/5" />
+
+                    {/* Section 5: Key Findings */}
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-semibold text-white uppercase tracking-wider">Key Findings</h2>
+                      <ul className="list-disc pl-5 text-sm space-y-2 text-slate-300">
+                        {reportData.narrative.findings.map((finding: string, idx: number) => (
+                          <li key={idx}><span className="text-slate-200">{finding}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <hr className="border-white/5" />
+
+                    {/* Section 6: Important Distributions */}
+                    {reportData.distributions && Object.keys(reportData.distributions).length > 0 && (
+                      <div className="space-y-3">
+                        <h2 className="text-xs font-semibold text-white uppercase tracking-wider">Important Distributions</h2>
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {Object.entries(reportData.distributions).map(([colName, dist]: [string, any]) => (
+                            <div key={colName} className="rounded-2xl border border-white/5 bg-slate-950/40 p-4">
+                              <h3 className="text-xs font-semibold text-sky-300 uppercase tracking-wider mb-3">{colName.replace("_", " ")} Distribution</h3>
+                              <div className="space-y-3">
+                                {dist.map((item: any, idx: number) => (
+                                  <div key={idx} className="space-y-1">
+                                    <div className="flex items-center justify-between text-[11px]">
+                                      <span className="font-medium text-slate-300 truncate max-w-[150px]">{item.category}</span>
+                                      <span className="text-slate-400">{item.count} ({item.percentage}%)</span>
+                                    </div>
+                                    <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                                      <div 
+                                        className="h-full bg-gradient-to-r from-sky-500 to-violet-500 rounded-full"
+                                        style={{ width: `${item.percentage}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <hr className="border-white/5" />
+
+                    {/* Section 8: Patterns & Observations */}
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-semibold text-white uppercase tracking-wider">Patterns & Observations</h2>
                       <p className="text-sm leading-6 text-slate-300">
-                        The dataset <strong className="text-white">{currentDataset.original_filename}</strong> contains structured records suitable for transactional analytics. 
-                        AI schema validation detects a relational index key structure with {currentDataset.columns} properties. 
-                        No structural corruption or schema discrepancies were found. DuckDB engine successfully cached the analytical views for high-performance natural language query mapping.
+                        {reportData.narrative.patterns}
                       </p>
                     </div>
 
-                    <div>
-                      <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-2">Detected Column Schema</h2>
-                      <div className="overflow-x-auto rounded-xl border border-white/10">
-                        <table className="min-w-full text-left text-xs">
-                          <thead className="bg-slate-950/80 text-slate-400">
-                            <tr>
-                              <th className="px-3 py-2 font-semibold">Column Name</th>
-                              <th className="px-3 py-2 font-semibold">Inferred Datatype</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {currentDataset.column_info?.map((col: { name: string; datatype: string }, idx: number) => (
-                              <tr key={idx} className="border-t border-white/5 bg-slate-900/50">
-                                <td className="px-3 py-2 font-mono text-sky-300">{col.name}</td>
-                                <td className="px-3 py-2 text-slate-400">{col.datatype}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                    <hr className="border-white/5" />
+
+                    {/* Section 9: AI Recommendations */}
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-semibold text-white uppercase tracking-wider">AI Recommendations</h2>
+                      <ul className="list-disc pl-5 text-sm space-y-2 text-slate-300">
+                        {reportData.narrative.recommendations.map((rec: string, idx: number) => (
+                          <li key={idx}><span className="text-slate-200">{rec}</span></li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <hr className="border-white/5" />
+
+                    {/* Section 10: Suggested Questions */}
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-semibold text-white uppercase tracking-wider">Suggested Questions</h2>
+                      <p className="text-xs text-slate-400 mb-2">Click a question below to send it directly into the AI Chat assistant workspace:</p>
+                      <div className="space-y-2">
+                        {reportData.narrative.suggested_questions.map((q: string, idx: number) => (
+                          <button
+                            key={idx}
+                            onClick={() => handleQuestionClick(q)}
+                            className="flex w-full items-center justify-between rounded-xl border border-white/10 bg-slate-900/50 px-4 py-2.5 text-left text-xs text-slate-300 transition hover:border-sky-500/40 hover:bg-slate-800/80"
+                          >
+                            <span>{q}</span>
+                            <span className="text-sky-300">→</span>
+                          </button>
+                        ))}
                       </div>
                     </div>
 
-                    <div>
-                      <h2 className="text-sm font-semibold text-white uppercase tracking-wider mb-2">AI Optimization Recommendations</h2>
-                      <ul className="list-disc pl-5 text-sm space-y-2 text-slate-300">
-                        <li><strong>Run aggregations:</strong> Utilize the Ask AI chat to count or group rows by specific label columns like string types to identify distributions.</li>
-                        <li><strong>Time-series check:</strong> If date or timestamp columns are present, prompt the AI with: <em>&quot;Generate a line chart of trends over time.&quot;</em></li>
-                        <li><strong>Data clean-up:</strong> The ingestion engine automatically resolved null values to empty strings. Ensure no outliers skew statistical means.</li>
+                    <hr className="border-white/5" />
+
+                    {/* Section 11: Data Integrity & Limitations */}
+                    <div className="space-y-3">
+                      <h2 className="text-xs font-semibold text-white uppercase tracking-wider">Data Integrity & Limitations</h2>
+                      <ul className="list-disc pl-5 text-xs space-y-1.5 text-slate-400">
+                        <li>The dataset contains {reportData.overview.rows} rows and {reportData.overview.columns} columns. Statistical findings reflect only this sample.</li>
+                        <li>Missing/null values were profiled during data processing (Total found: {reportData.quality.total_missing}).</li>
+                        <li>SQL queries for uploaded CSV/Excel datasets are executed against an in-memory SQLite representation of the complete dataset.</li>
+                        <li>Statistical relationships/findings represent correlations and observations within the uploaded dataset, and do not necessarily establish direct causation.</li>
                       </ul>
                     </div>
                   </div>
@@ -252,7 +442,7 @@ export default function DashboardPage() {
                   </div>
 
                 </div>
-              )}
+              ) : null}
 
             </div>
           </div>

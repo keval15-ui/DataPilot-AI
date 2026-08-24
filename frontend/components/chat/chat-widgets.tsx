@@ -176,6 +176,14 @@ export function ChatPanel() {
       setMounted(true);
     });
 
+    if (typeof window !== "undefined") {
+      const draft = localStorage.getItem("chat_draft_question");
+      if (draft) {
+        setInput(draft);
+        localStorage.removeItem("chat_draft_question");
+      }
+    }
+
     return () => {
       window.cancelAnimationFrame(frameId);
     };

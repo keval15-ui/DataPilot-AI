@@ -14,41 +14,26 @@ export function UploadPanel() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [progress, setProgress] = useState(0);
-
   const [uploading, setUploading] = useState(false);
-
-  const [dataset, setDataset] =
-    useState<UploadResponse | null>(null);
-
-  const [recentUploads, setRecentUploads] =
-    useState<UploadResponse[]>([]);
-
+  const [isDragActive, setIsDragActive] = useState(false);
+  const [dataset, setDataset] = useState<UploadResponse | null>(null);
+  const [recentUploads, setRecentUploads] = useState<UploadResponse[]>([]);
   const [error, setError] = useState("");
 
-  async function handleFileUpload(
-    event: React.ChangeEvent<HTMLInputElement>
-  ) {
-    const file = event.target.files?.[0];
-
-    if (!file) return;
-
+  async function uploadFile(file: File) {
     try {
       setUploading(true);
       setProgress(20);
 
       const response = await uploadDataset(file);
-      // router.push(`/chat?dataset=${response.dataset_id}`);
-
       console.log("Upload Response:", response);
 
       setProgress(100);
-
       setDataset(response);
 
       if (typeof window !== "undefined") {
         localStorage.setItem("dataset", JSON.stringify(response));
         
-        // Add to notifications list
         try {
           const storedNotifs = localStorage.getItem("notifications");
           const list = storedNotifs ? JSON.parse(storedNotifs) : [];
@@ -115,18 +100,84 @@ export function UploadPanel() {
     }
   }
 
+  async function handleFileUpload(
+    event: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 50 * 1024 * 1024) {
+      setError("Maximum allowed file size is 50 MB.");
+      return;
+    }
+
+    await uploadFile(file);
+  }
+
+  function handleDrag(event: React.DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.type === "dragenter" || event.type === "dragover") {
+      setIsDragActive(true);
+    } else if (event.type === "dragleave") {
+      setIsDragActive(false);
+    }
+  }
+
+  async function handleDrop(event: React.DragEvent) {
+    event.preventDefault();
+    event.stopPropagation();
+    setIsDragActive(false);
+
+    const file = event.dataTransfer?.files?.[0];
+    if (!file) return;
+
+    const fileName = file.name.toLowerCase();
+    const isSupported = fileName.endsWith(".csv") || 
+                        fileName.endsWith(".xlsx") || 
+                        fileName.endsWith(".xls") || 
+                        fileName.endsWith(".db") || 
+                        fileName.endsWith(".sqlite");
+
+    if (!isSupported) {
+      setError("Only CSV, Excel (XLSX, XLS), and SQLite (.db, .sqlite) files are supported.");
+      return;
+    }
+
+    if (file.size > 50 * 1024 * 1024) {
+      setError("Maximum allowed file size is 50 MB.");
+      return;
+    }
+
+    await uploadFile(file);
+  }
+
   return (
     <div className="space-y-6">
-      <Card className="overflow-hidden border-sky-400/20">
-        <div className="rounded-3xl border border-dashed border-sky-400/30 bg-gradient-to-br from-sky-500/10 via-slate-950/70 to-violet-500/10 p-8 text-center">
+      <Card 
+        className={`overflow-hidden border-sky-400/20 transition-all duration-200 ${
+          isDragActive ? "ring-2 ring-sky-500 scale-[1.01]" : ""
+        }`}
+      >
+        <div 
+          className={`rounded-3xl border border-dashed p-8 text-center transition-colors duration-200 ${
+            isDragActive 
+              ? "border-sky-500 bg-sky-500/10 text-white" 
+              : "border-sky-400/30 bg-gradient-to-br from-sky-500/10 via-slate-950/70 to-violet-500/10"
+          }`}
+          onDragEnter={handleDrag}
+          onDragOver={handleDrag}
+          onDragLeave={handleDrag}
+          onDrop={handleDrop}
+        >
           <p className="text-sm font-medium uppercase tracking-[0.3em] text-sky-300">
-            Drag and drop
+            {isDragActive ? "Drop to upload" : "Drag & drop your dataset here"}
           </p>
           <h3 className="mt-3 text-2xl font-semibold text-white">
-            Drop your data files here
+            {isDragActive ? "Ready to Ingest!" : "or click to browse"}
           </h3>
           <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-            Upload CSV files, Excel spreadsheets, or connect a SQLite database and prepare them for AI analysis.
+            Upload CSV files, Excel spreadsheets (XLSX, XLS), or SQLite databases (.db, .sqlite) up to 50 MB.
           </p>
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <input
@@ -135,9 +186,10 @@ export function UploadPanel() {
               hidden
               accept=".csv,.xlsx,.xls,.db,.sqlite"
               onChange={handleFileUpload}
+              disabled={uploading}
             />
 
-            <Button onClick={() => fileInputRef.current?.click()}>
+            <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
               Browse Files
             </Button>
           </div>
