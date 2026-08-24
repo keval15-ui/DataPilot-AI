@@ -17,54 +17,24 @@ EMAIL_PATTERN = re.compile(
 )
 
 CURRENCY_PATTERN = re.compile(
-    r"^\s*"
-    r"(?:[$€£₹¥]|USD|EUR|GBP|INR|JPY|CAD|AUD)?"
-    r"\s*"
-    r"[-+]?"
-    r"(?:\d{1,3}(?:,\d{3})+|\d+)"
-    r"(?:\.\d+)?"
-    r"\s*"
-    r"(?:USD|EUR|GBP|INR|JPY|CAD|AUD)?"
-    r"\s*$",
+    r"^\s*(?:[$€£₹¥]|USD|EUR|GBP|INR|JPY|CAD|AUD)?\s*[-+]?"
+    r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\s*"
+    r"(?:USD|EUR|GBP|INR|JPY|CAD|AUD)?\s*$",
     re.IGNORECASE,
 )
 
 NUMBER_PATTERN = re.compile(
-    r"^\s*[-+]?"
-    r"(?:\d{1,3}(?:,\d{3})+|\d+)"
-    r"(?:\.\d+)?\s*$"
+    r"^\s*[-+]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?\s*$"
 )
 
 DATE_COLUMN_NAME_HINTS = {
-    "date",
-    "datetime",
-    "timestamp",
-    "time",
-    "created",
-    "updated",
-    "dob",
-    "birth",
-    "start",
-    "end",
-    "joined",
-    "joining",
-    "signup",
-    "registered",
+    "date", "datetime", "timestamp", "time", "created", "updated",
+    "dob", "birth", "start", "end", "joined", "joining",
+    "signup", "registered",
 }
 
 EMAIL_COLUMN_NAME_HINTS = {
-    "email",
-    "e_mail",
-    "mail",
-    "email_address",
-}
-
-ID_COLUMN_NAME_HINTS = {
-    "id",
-    "code",
-    "number",
-    "no",
-    "key",
+    "email", "e_mail", "mail", "email_address",
 }
 
 
@@ -73,12 +43,14 @@ ID_COLUMN_NAME_HINTS = {
 # ============================================================
 
 def _safe_value(value: Any) -> Any:
-    """
-    Convert NumPy/Pandas values into JSON-safe Python values.
-    """
-
-    if pd.isna(value):
+    if value is None:
         return None
+
+    try:
+        if pd.isna(value):
+            return None
+    except (TypeError, ValueError):
+        pass
 
     if isinstance(value, np.integer):
         return int(value)
@@ -98,31 +70,10 @@ def _safe_value(value: Any) -> Any:
 
 
 def _clean_string_series(series: pd.Series) -> pd.Series:
-    """
-    Return non-null values converted to strings.
-    """
-
-    return (
-        series.dropna()
-        .astype(str)
-    )
+    return series.dropna().astype(str)
 
 
 def _normalize_text(value: Any) -> str:
-    """
-    Normalize a value for comparison.
-
-    Example:
-
-        ' UPI '
-        'upi'
-        'UPI'
-
-    all become:
-
-        'upi'
-    """
-
     return str(value).strip().casefold()
 
 
@@ -131,62 +82,40 @@ def _normalize_text(value: Any) -> str:
 # ============================================================
 
 def _load_dataset(file_path: str) -> pd.DataFrame:
-    """
-    Load CSV or Excel dataset.
-
-    This function is READ-ONLY.
-    """
+    """Load CSV or Excel without modifying the source file."""
 
     if not file_path:
-        raise ValueError(
-            "Dataset file path is missing."
-        )
+        raise ValueError("Dataset file path is missing.")
 
     if not os.path.exists(file_path):
         raise FileNotFoundError(
             f"Dataset file not found: {file_path}"
         )
 
-    extension = os.path.splitext(
-        file_path
-    )[1].lower()
+    extension = os.path.splitext(file_path)[1].lower()
 
     if extension == ".csv":
-
         try:
             return pd.read_csv(file_path)
-
         except UnicodeDecodeError:
-            try:
-                return pd.read_csv(
-                    file_path,
-                    encoding="latin1",
-                )
-            except Exception as exc:
-                raise ValueError(
-                    f"Unable to read CSV file: {exc}"
-                )
-
+            return pd.read_csv(
+                file_path,
+                encoding="latin1",
+            )
         except Exception as exc:
             raise ValueError(
                 f"Unable to read CSV file: {exc}"
-            )
+            ) from exc
 
     if extension in {".xlsx", ".xls"}:
-
         try:
             return pd.read_excel(file_path)
-
         except Exception as exc:
             raise ValueError(
                 f"Unable to read Excel file: {exc}"
-            )
+            ) from exc
 
-    if extension in {
-        ".db",
-        ".sqlite",
-        ".sqlite3",
-    }:
+    if extension in {".db", ".sqlite", ".sqlite3"}:
         raise ValueError(
             "SQLite quality scanning is not supported yet."
         )
@@ -204,67 +133,79 @@ def _check_column_name(
     column_name: str,
 ) -> list[dict[str, Any]]:
 
-    issues = []
+    issues: list[dict[str, Any]] = []
 
     if not column_name.strip():
-        issues.append(
-            {
-                "type": "empty_column_name",
-                "severity": "problem",
-                "message": "Column name is empty.",
-            }
-        )
-
+        issues.append({
+            "type": "empty_column_name",
+            "severity": "problem",
+            "message": "Column name is empty.",
+        })
         return issues
 
     if column_name != column_name.strip():
-        issues.append(
-            {
-                "type": "column_name_whitespace",
-                "severity": "warning",
-                "message": (
-                    "Column name contains leading or trailing whitespace."
-                ),
-            }
-        )
+        issues.append({
+            "type": "column_name_whitespace",
+            "severity": "warning",
+            "message": (
+                "Column name contains leading or trailing whitespace."
+            ),
+        })
 
     if any(
         char in column_name
-        for char in [
-            " ",
-            "-",
-            "/",
-            "\\",
-            "?",
-            "(",
-            ")",
-            ".",
-        ]
+        for char in [" ", "-", "/", "\\", "?", "(", ")", "."]
     ):
-        issues.append(
-            {
-                "type": "sql_column_name",
-                "severity": "warning",
-                "message": (
-                    "Column name contains characters that may "
-                    "require quoting or normalization for SQL."
-                ),
-            }
-        )
+        issues.append({
+            "type": "sql_column_name",
+            "severity": "info",
+            "message": (
+                "Column name contains characters that may "
+                "require quoting in SQL."
+            ),
+        })
 
     if column_name[0].isdigit():
-        issues.append(
-            {
-                "type": "sql_column_name",
-                "severity": "warning",
-                "message": (
-                    "Column name starts with a number and may "
-                    "require quoting in SQL."
-                ),
-            }
-        )
+        issues.append({
+            "type": "sql_column_name",
+            "severity": "info",
+            "message": (
+                "Column name starts with a number and may "
+                "require quoting in SQL."
+            ),
+        })
 
     return issues
+
+
+# ============================================================
+# Solution / Mapping Column Detection
+# ============================================================
+
+def _is_solution_column(column_name: str) -> bool:
+    """
+    Dynamically identify solution/mapping columns.
+
+    Examples:
+        Body Pain solution
+        Diabetes solution
+        Sleep Problems Solution
+
+    NULLs and constant values in these columns can be
+    semantically valid.
+    """
+
+    normalized = re.sub(
+        r"[_\-\s]+",
+        " ",
+        column_name.strip().casefold(),
+    )
+
+    return (
+        normalized == "solution"
+        or normalized.endswith(" solution")
+        or " solution " in f" {normalized} "
+    )
 
 
 # ============================================================
@@ -273,28 +214,36 @@ def _check_column_name(
 
 def _check_missing_values(
     series: pd.Series,
+    column_name: str,
 ) -> tuple[int, list[dict[str, Any]]]:
 
-    missing_count = int(
-        series.isna().sum()
-    )
+    missing_count = int(series.isna().sum())
 
-    issues = []
+    if missing_count == 0:
+        return 0, []
 
-    if missing_count > 0:
+    if _is_solution_column(column_name):
+        return missing_count, [{
+            "type": "missing_values",
+            "severity": "info",
+            "count": missing_count,
+            "message": (
+                f"{missing_count} missing values detected in a "
+                "solution/mapping column. These may be expected "
+                "when the related condition is not applicable."
+            ),
+            "recommended_action": "no_automatic_cleaning",
+        }]
 
-        issues.append(
-            {
-                "type": "missing_values",
-                "severity": "warning",
-                "count": missing_count,
-                "message": (
-                    f"{missing_count} missing values detected."
-                ),
-            }
-        )
-
-    return missing_count, issues
+    return missing_count, [{
+        "type": "missing_values",
+        "severity": "warning",
+        "count": missing_count,
+        "message": (
+            f"{missing_count} missing values detected."
+        ),
+        "recommended_action": "review_missing_values",
+    }]
 
 
 # ============================================================
@@ -303,95 +252,101 @@ def _check_missing_values(
 
 def _check_empty_or_constant(
     series: pd.Series,
+    column_name: str,
 ) -> list[dict[str, Any]]:
 
-    issues = []
-
+    issues: list[dict[str, Any]] = []
     non_null = series.dropna()
+    is_solution = _is_solution_column(column_name)
 
     if len(non_null) == 0:
-
-        issues.append(
-            {
-                "type": "empty_column",
-                "severity": "problem",
-                "message": (
-                    "Column contains no usable values."
-                ),
-            }
-        )
-
+        issues.append({
+            "type": "empty_column",
+            "severity": "info" if is_solution else "problem",
+            "message": (
+                "Solution/mapping column contains no non-null values. "
+                "This may be expected when the solution is not applicable."
+                if is_solution
+                else "Column contains no non-null values."
+            ),
+            "recommended_action": (
+                "no_automatic_cleaning"
+                if is_solution
+                else "review_empty_column"
+            ),
+        })
         return issues
 
-    unique_count = int(
-        non_null.nunique()
-    )
+    unique_count = int(non_null.nunique())
 
     if unique_count == 1:
-
-        issues.append(
-            {
-                "type": "constant_column",
-                "severity": "warning",
-                "message": (
-                    "Column contains only one unique value."
-                ),
-            }
-        )
+        issues.append({
+            "type": "constant_column",
+            "severity": "info" if is_solution else "warning",
+            "message": (
+                "Solution/mapping column contains one unique value. "
+                "This may be intentional and does not require "
+                "automatic cleaning."
+                if is_solution
+                else (
+                    "Column contains one unique value. "
+                    "This is not automatically a data-quality error."
+                )
+            ),
+            "recommended_action": (
+                "no_automatic_cleaning"
+                if is_solution
+                else "review_constant_column"
+            ),
+        })
 
     return issues
 
 
 # ============================================================
-# Whitespace Inconsistency
+# Whitespace
 # ============================================================
 
 def _check_whitespace(
     series: pd.Series,
-) -> tuple[int, list[dict[str, Any]]]:
+) -> list[dict[str, Any]]:
 
     values = _clean_string_series(series)
 
     if values.empty:
-        return 0, []
+        return []
 
     stripped = values.str.strip()
-
     affected_mask = values != stripped
+    affected_count = int(affected_mask.sum())
 
-    affected_count = int(
-        affected_mask.sum()
+    if affected_count == 0:
+        return []
+
+    examples = (
+        values[affected_mask]
+        .drop_duplicates()
+        .head(5)
+        .tolist()
     )
 
-    issues = []
-
-    if affected_count > 0:
-
-        examples = (
-            values[affected_mask]
-            .drop_duplicates()
-            .head(5)
-            .tolist()
-        )
-
-        issues.append(
-            {
-                "type": "whitespace_inconsistency",
-                "severity": "warning",
-                "count": affected_count,
-                "examples": examples,
-                "message": (
-                    f"{affected_count} values contain "
-                    "leading or trailing whitespace."
-                ),
-            }
-        )
-
-    return affected_count, issues
+    return [{
+        "type": "whitespace_inconsistency",
+        "severity": "warning",
+        "count": affected_count,
+        "examples": examples,
+        "message": (
+            f"{affected_count} values contain leading or "
+            "trailing whitespace."
+        ),
+        "recommended_action": (
+            "trim_leading_and_trailing_whitespace"
+        ),
+    }]
 
 
 # ============================================================
-# Case / Categorical Inconsistency
+# Categorical Consistency
 # ============================================================
 
 def _check_categorical_consistency(
@@ -403,30 +358,19 @@ def _check_categorical_consistency(
     if values.empty:
         return []
 
-    # Only meaningful for columns with a reasonable number
-    # of repeated categorical values.
-    unique_values = values.nunique()
+    unique_values = int(values.nunique())
 
-    if unique_values <= 1:
+    if unique_values <= 1 or unique_values > 100:
         return []
 
-    if unique_values > 100:
-        return []
-
-    normalized = values.map(
-        _normalize_text
-    )
-
+    normalized = values.map(_normalize_text)
     groups: dict[str, set[str]] = {}
 
     for original, normal in zip(
-        values,
-        normalized,
+        values.tolist(),
+        normalized.tolist(),
     ):
-        groups.setdefault(
-            normal,
-            set(),
-        ).add(original)
+        groups.setdefault(normal, set()).add(original)
 
     inconsistent_groups = [
         {
@@ -443,33 +387,27 @@ def _check_categorical_consistency(
     affected_count = 0
 
     for group in inconsistent_groups:
-
-        variant_set = set(
-            group["variants"]
-        )
-
         affected_count += int(
-            values.isin(variant_set).sum()
+            values.isin(set(group["variants"])).sum()
         )
 
-    examples = inconsistent_groups[:10]
-
-    return [
-        {
-            "type": "categorical_inconsistency",
-            "severity": "warning",
-            "count": affected_count,
-            "groups": examples,
-            "message": (
-                "Multiple values differ only by "
-                "capitalization and/or whitespace."
-            ),
-        }
-    ]
+    return [{
+        "type": "categorical_inconsistency",
+        "severity": "warning",
+        "count": affected_count,
+        "groups": inconsistent_groups[:10],
+        "message": (
+            "Multiple values differ only by capitalization "
+            "and/or whitespace."
+        ),
+        "recommended_action": (
+            "normalize_case_and_whitespace"
+        ),
+    }]
 
 
 # ============================================================
-# Email Detection
+# Email
 # ============================================================
 
 def _email_likeness(
@@ -487,7 +425,7 @@ def _email_likeness(
         for token in EMAIL_COLUMN_NAME_HINTS
     )
 
-    contains_at = (
+    contains_at = float(
         values.str.contains(
             "@",
             regex=False,
@@ -495,12 +433,10 @@ def _email_likeness(
         ).mean()
     )
 
-    valid_email_ratio = (
+    valid_email_ratio = float(
         values.map(
             lambda value: bool(
-                EMAIL_PATTERN.match(
-                    value.strip()
-                )
+                EMAIL_PATTERN.match(value.strip())
             )
         ).mean()
     )
@@ -508,14 +444,13 @@ def _email_likeness(
     if name_hint:
         return max(
             0.8,
-            float(valid_email_ratio),
-        )
-
-    return float(
-        max(
             contains_at,
             valid_email_ratio,
         )
+
+    return max(
+        contains_at,
+        valid_email_ratio,
     )
 
 
@@ -529,49 +464,42 @@ def _check_email_column(
     if values.empty:
         return []
 
-    likelihood = _email_likeness(
-        series,
-        column_name,
-    )
-
-    if likelihood < 0.5:
+    if _email_likeness(series, column_name) < 0.5:
         return []
 
-    invalid_values = []
-
-    for value in values:
-
-        if not EMAIL_PATTERN.match(
-            value.strip()
-        ):
-            invalid_values.append(value)
+    invalid_values = [
+        value
+        for value in values
+        if not EMAIL_PATTERN.match(value.strip())
+    ]
 
     if not invalid_values:
         return []
 
-    unique_examples = (
+    examples = (
         pd.Series(invalid_values)
         .drop_duplicates()
         .head(10)
         .tolist()
     )
 
-    return [
-        {
-            "type": "invalid_email",
-            "severity": "problem",
-            "count": len(invalid_values),
-            "examples": unique_examples,
-            "message": (
-                f"{len(invalid_values)} values do not "
-                "match a valid email format."
-            ),
-        }
-    ]
+    return [{
+        "type": "invalid_email",
+        "severity": "problem",
+        "count": len(invalid_values),
+        "examples": examples,
+        "message": (
+            f"{len(invalid_values)} values do not match "
+            "a valid email format."
+        ),
+        "recommended_action": (
+            "review_invalid_email_values"
+        ),
+    }]
 
 
 # ============================================================
-# Numeric / Currency Detection
+# Numeric / Currency
 # ============================================================
 
 def _numeric_likeness(
@@ -620,26 +548,15 @@ def _check_numeric_consistency(
     if values.empty:
         return []
 
-    numeric_ratio = _numeric_likeness(
-        series
-    )
+    numeric_ratio = _numeric_likeness(series)
+    currency_ratio = _currency_likeness(series)
 
-    currency_ratio = _currency_likeness(
-        series
-    )
-
-    # Only inspect as numeric-like when the majority
-    # of values appear numeric/currency.
-    if max(
-        numeric_ratio,
-        currency_ratio,
-    ) < 0.5:
+    if max(numeric_ratio, currency_ratio) < 0.5:
         return []
 
     invalid_values = []
 
     for value in values:
-
         normalized = (
             value
             .replace(",", "")
@@ -659,7 +576,6 @@ def _check_numeric_consistency(
 
         try:
             float(normalized)
-
         except ValueError:
             invalid_values.append(value)
 
@@ -673,18 +589,19 @@ def _check_numeric_consistency(
         .tolist()
     )
 
-    return [
-        {
-            "type": "mixed_numeric_values",
-            "severity": "warning",
-            "count": len(invalid_values),
-            "examples": examples,
-            "message": (
-                f"{len(invalid_values)} values cannot "
-                "be interpreted consistently as numeric."
-            ),
-        }
-    ]
+    return [{
+        "type": "mixed_numeric_values",
+        "severity": "warning",
+        "count": len(invalid_values),
+        "examples": examples,
+        "message": (
+            f"{len(invalid_values)} values cannot be interpreted "
+            "consistently as numeric."
+        ),
+        "recommended_action": (
+            "normalize_numeric_and_currency_values"
+        ),
+    }]
 
 
 # ============================================================
@@ -695,6 +612,7 @@ def _date_likeness(
     series: pd.Series,
     column_name: str,
 ) -> float:
+
     values = _clean_string_series(series)
 
     if values.empty:
@@ -707,53 +625,27 @@ def _date_likeness(
         for token in DATE_COLUMN_NAME_HINTS
     )
 
-    # --------------------------------------------------------
-    # IMPORTANT:
-    # Never automatically detect a numeric column as a date.
-    # Numeric columns such as age, balance, duration, day,
-    # campaign, pdays, and previous must remain numeric.
-    # --------------------------------------------------------
-    if pd.api.types.is_numeric_dtype(series) and not name_hint:
+    # Do not automatically interpret numeric columns as dates.
+    if (
+        pd.api.types.is_numeric_dtype(series)
+        and not name_hint
+    ):
         return 0.0
 
-    # Try parsing only when the column is appropriate for
-    # date detection.
+    # format="mixed" is intentional: the scanner must be able
+    # to inspect columns containing different date formats.
     parsed = pd.to_datetime(
         values,
         errors="coerce",
+        format="mixed",
     )
 
-    parse_ratio = (
-        parsed.notna().sum()
-        / len(values)
-    )
+    parse_ratio = float(parsed.notna().mean())
 
     if name_hint:
-        return max(
-            0.8,
-            float(parse_ratio),
-        )
+        return max(0.8, parse_ratio)
 
-    return float(parse_ratio)
-
-    # Try parsing without forcing a format.
-    parsed = pd.to_datetime(
-        values,
-        errors="coerce",
-    )
-
-    parse_ratio = (
-        parsed.notna().sum()
-        / len(values)
-    )
-
-    if name_hint:
-        return max(
-            0.8,
-            float(parse_ratio),
-        )
-
-    return float(parse_ratio)
+    return parse_ratio
 
 
 def _check_date_column(
@@ -766,29 +658,20 @@ def _check_date_column(
     if values.empty:
         return []
 
-    likelihood = _date_likeness(
-        series,
-        column_name,
-    )
-
-    if likelihood < 0.7:
+    if _date_likeness(series, column_name) < 0.7:
         return []
 
     parsed = pd.to_datetime(
         values,
         errors="coerce",
+        format="mixed",
     )
 
     invalid_mask = parsed.isna()
-
-    invalid_count = int(
-        invalid_mask.sum()
-    )
-
-    issues = []
+    invalid_count = int(invalid_mask.sum())
+    issues: list[dict[str, Any]] = []
 
     if invalid_count > 0:
-
         examples = (
             values[invalid_mask]
             .drop_duplicates()
@@ -796,20 +679,20 @@ def _check_date_column(
             .tolist()
         )
 
-        issues.append(
-            {
-                "type": "invalid_date",
-                "severity": "problem",
-                "count": invalid_count,
-                "examples": examples,
-                "message": (
-                    f"{invalid_count} values could not "
-                    "be interpreted as dates."
-                ),
-            }
-        )
+        issues.append({
+            "type": "invalid_date",
+            "severity": "problem",
+            "count": invalid_count,
+            "examples": examples,
+            "message": (
+                f"{invalid_count} values could not be "
+                "interpreted as dates."
+            ),
+            "recommended_action": (
+                "review_or_standardize_dates"
+            ),
+        })
 
-    # Detect multiple common date representations.
     formats = set()
 
     for value in values.head(500):
@@ -839,26 +722,24 @@ def _check_date_column(
             formats.add("DD.MM.YYYY")
 
     if len(formats) > 1:
-
-        issues.append(
-            {
-                "type": "mixed_date_formats",
-                "severity": "warning",
-                "formats_detected": sorted(
-                    formats
-                ),
-                "message": (
-                    "Multiple date formats were detected "
-                    "within this column."
-                ),
-            }
-        )
+        issues.append({
+            "type": "mixed_date_formats",
+            "severity": "warning",
+            "formats_detected": sorted(formats),
+            "message": (
+                "Multiple date formats were detected "
+                "within this column."
+            ),
+            "recommended_action": (
+                "standardize_date_format"
+            ),
+        })
 
     return issues
 
 
 # ============================================================
-# Outlier Detection
+# Statistical Outliers
 # ============================================================
 
 def _check_outliers(
@@ -876,18 +757,10 @@ def _check_outliers(
     if len(values) < 10:
         return []
 
-    q1 = float(
-        values.quantile(0.25)
-    )
-
-    q3 = float(
-        values.quantile(0.75)
-    )
-
+    q1 = float(values.quantile(0.25))
+    q3 = float(values.quantile(0.75))
     iqr = q3 - q1
 
-    # If all values are effectively identical,
-    # IQR is not useful.
     if iqr == 0:
         return []
 
@@ -903,13 +776,10 @@ def _check_outliers(
         return []
 
     outlier_count = len(outliers)
+    outlier_ratio = outlier_count / len(values)
 
-    # Don't label an entire naturally skewed column as
-    # "bad" just because IQR finds some outliers.
-    outlier_ratio = (
-        outlier_count / len(values)
-    )
-
+    # Outliers are informational; they are not automatically
+    # invalid and must not make a dataset dirty.
     if outlier_ratio > 0.10:
         return []
 
@@ -920,22 +790,23 @@ def _check_outliers(
         .tolist()
     )
 
-    return [
-        {
-            "type": "statistical_outlier",
-            "severity": "warning",
-            "count": outlier_count,
-            "examples": [
-                _safe_value(value)
-                for value in examples
-            ],
-            "message": (
-                f"{outlier_count} values fall outside "
-                "the statistical IQR range. "
-                "Outliers are not automatically considered invalid."
-            ),
-        }
-    ]
+    return [{
+        "type": "statistical_outlier",
+        "severity": "info",
+        "count": outlier_count,
+        "examples": [
+            _safe_value(value)
+            for value in examples
+        ],
+        "message": (
+            f"{outlier_count} values fall outside the "
+            "statistical IQR range. An outlier is not "
+            "automatically invalid."
+        ),
+        "recommended_action": (
+            "review_outliers_before_modifying"
+        ),
+    }]
 
 
 # ============================================================
@@ -946,9 +817,7 @@ def _check_duplicate_rows(
     df: pd.DataFrame,
 ) -> int:
 
-    return int(
-        df.duplicated().sum()
-    )
+    return int(df.duplicated().sum())
 
 
 # ============================================================
@@ -961,46 +830,42 @@ def _profile_column(
     total_rows: int,
 ) -> dict[str, Any]:
 
-    datatype = str(
-        series.dtype
-    )
-
-    missing_count, missing_issues = (
-        _check_missing_values(series)
-    )
-
+    datatype = str(series.dtype)
     issues: list[dict[str, Any]] = []
 
+    # Column name
     issues.extend(
-        missing_issues
+        _check_column_name(column_name)
     )
 
-    issues.extend(
-        _check_column_name(
-            column_name
+    # Missing values
+    missing_count, missing_issues = (
+        _check_missing_values(
+            series,
+            column_name,
         )
     )
+    issues.extend(missing_issues)
 
+    # Empty / constant
     issues.extend(
         _check_empty_or_constant(
-            series
+            series,
+            column_name,
         )
     )
 
-    _, whitespace_issues = (
+    # Whitespace
+    issues.extend(
         _check_whitespace(series)
     )
 
+    # Categorical consistency
     issues.extend(
-        whitespace_issues
+        _check_categorical_consistency(series)
     )
 
-    issues.extend(
-        _check_categorical_consistency(
-            series
-        )
-    )
-
+    # Email
     issues.extend(
         _check_email_column(
             series,
@@ -1008,12 +873,12 @@ def _profile_column(
         )
     )
 
+    # Numeric
     issues.extend(
-        _check_numeric_consistency(
-            series
-        )
+        _check_numeric_consistency(series)
     )
 
+    # Date
     issues.extend(
         _check_date_column(
             series,
@@ -1021,16 +886,12 @@ def _profile_column(
         )
     )
 
+    # Outliers
     issues.extend(
-        _check_outliers(
-            series
-        )
+        _check_outliers(series)
     )
 
-    # --------------------------------------------------------
-    # Determine status from severity
-    # --------------------------------------------------------
-
+    # Only problem/warning affect column status.
     has_problem = any(
         issue.get("severity") == "problem"
         for issue in issues
@@ -1043,31 +904,20 @@ def _profile_column(
 
     if has_problem:
         status = "problem"
-
     elif has_warning:
         status = "warning"
-
     else:
         status = "clean"
-
-    # --------------------------------------------------------
-    # Invalid count
-    # --------------------------------------------------------
 
     invalid_count = sum(
         int(issue.get("count", 0))
         for issue in issues
-        if issue.get("type")
-        in {
+        if issue.get("type") in {
             "invalid_email",
             "invalid_date",
             "mixed_numeric_values",
         }
     )
-
-    # --------------------------------------------------------
-    # Value examples
-    # --------------------------------------------------------
 
     non_null = series.dropna()
 
@@ -1077,9 +927,7 @@ def _profile_column(
     ]
 
     unique_count = int(
-        series.nunique(
-            dropna=True
-        )
+        series.nunique(dropna=True)
     )
 
     return {
@@ -1105,57 +953,34 @@ def scan_dataset(
     original_filename: str | None = None,
 ) -> dict:
     """
-    Dynamically scan EVERY column in an uploaded dataset.
+    Dynamically scan EVERY column.
 
-    The scanner is schema-agnostic.
+    The scanner is schema-agnostic and READ-ONLY.
 
-    It does NOT assume that columns are named:
-        Gender
-        City
-        Payment_Method
-        Order_Date
-        etc.
-
-    Every column discovered at runtime is analyzed based
-    on its actual datatype and values.
-
-    This function is READ-ONLY.
+    Important:
+    - Solution/mapping column NULLs are informational.
+    - Solution/mapping constant values are informational.
+    - Statistical outliers are informational.
+    - SQL identifier formatting is informational.
+    - Actual problems/warnings affect dataset status.
     """
 
-    # --------------------------------------------------------
-    # Load
-    # --------------------------------------------------------
-
-    df = _load_dataset(
-        file_path
-    )
+    df = _load_dataset(file_path)
 
     total_rows = len(df)
     total_columns = len(df.columns)
-
-    # --------------------------------------------------------
-    # Dataset-level statistics
-    # --------------------------------------------------------
 
     total_missing_values = int(
         df.isna().sum().sum()
     )
 
-    duplicate_rows = (
-        _check_duplicate_rows(df)
-    )
+    duplicate_rows = _check_duplicate_rows(df)
 
-    # --------------------------------------------------------
-    # Analyze EVERY column
-    # --------------------------------------------------------
-
-    column_reports = []
+    # Scan EVERY column
+    column_reports: list[dict[str, Any]] = []
 
     for column in df.columns:
-
-        column_name = str(
-            column
-        )
+        column_name = str(column)
 
         report = _profile_column(
             series=df[column],
@@ -1163,14 +988,9 @@ def scan_dataset(
             total_rows=total_rows,
         )
 
-        column_reports.append(
-            report
-        )
+        column_reports.append(report)
 
-    # --------------------------------------------------------
-    # Summary counts
-    # --------------------------------------------------------
-
+    # Summary
     clean_columns = sum(
         report["status"] == "clean"
         for report in column_reports
@@ -1186,115 +1006,78 @@ def scan_dataset(
         for report in column_reports
     )
 
-    # --------------------------------------------------------
-    # Total invalid values
-    # --------------------------------------------------------
-
     total_invalid_values = sum(
         report["invalid_count"]
         for report in column_reports
     )
 
-    # --------------------------------------------------------
-    # Quality Score
+    # Quality score
     #
-    # This score is based on column health.
-    # It is NOT an AI-generated score.
-    # --------------------------------------------------------
-
+    # This is a deterministic score based on column status.
+    # Informational issues do not lower the score.
     if total_columns == 0:
-
         quality_score = 0
-
     else:
-
         quality_score = round(
-            (
-                clean_columns
-                / total_columns
-            )
-            * 100
+            clean_columns / total_columns * 100
         )
 
-    # --------------------------------------------------------
     # Overall status
-    # --------------------------------------------------------
-
     if total_rows == 0:
         overall_status = "needs_cleaning"
-
     elif total_columns == 0:
         overall_status = "needs_cleaning"
-
     elif problem_columns > 0:
         overall_status = "needs_cleaning"
-
     elif warning_columns > 0:
         overall_status = "needs_attention"
-
     else:
         overall_status = "clean"
 
-    # --------------------------------------------------------
     # SQL compatibility
-    # --------------------------------------------------------
-
-    sql_issues = []
+    #
+    # SQL identifier issues do not make the data dirty.
+    # The SQL generation layer should quote identifiers when
+    # required.
+    sql_issues: list[dict[str, Any]] = []
 
     for report in column_reports:
-
         for issue in report["issues"]:
-
             if issue["type"] in {
                 "sql_column_name",
                 "column_name_whitespace",
             }:
+                sql_issues.append({
+                    "column": report["name"],
+                    "issue": issue["message"],
+                })
 
-                sql_issues.append(
-                    {
-                        "column": report["name"],
-                        "issue": issue["message"],
-                    }
-                )
+    # Quoted SQL identifiers are valid, so these do not make
+    # the dataset SQL-unready.
+    sql_ready = True
 
-    sql_ready = len(
-        sql_issues
-    ) == 0
-
-    # --------------------------------------------------------
-    # Dataset-level warnings
-    # --------------------------------------------------------
-
-    dataset_issues = []
+    # Dataset-level issues
+    dataset_issues: list[dict[str, Any]] = []
 
     if duplicate_rows > 0:
-
-        dataset_issues.append(
-            {
-                "type": "duplicate_rows",
-                "severity": "warning",
-                "count": duplicate_rows,
-                "message": (
-                    f"{duplicate_rows} duplicate rows detected."
-                ),
-            }
-        )
-
-    # --------------------------------------------------------
-    # Final response
-    # --------------------------------------------------------
+        dataset_issues.append({
+            "type": "duplicate_rows",
+            "severity": "warning",
+            "count": duplicate_rows,
+            "message": (
+                f"{duplicate_rows} duplicate rows detected."
+            ),
+            "recommended_action": (
+                "review_and_remove_exact_duplicates"
+            ),
+        })
 
     return {
         "dataset_id": dataset_id,
-
         "filename": original_filename,
-
         "status": overall_status,
-
         "quality_score": quality_score,
-
         "sql_ready": sql_ready,
-
         "summary": {
             "rows": total_rows,
             "columns": total_columns,
@@ -1305,10 +1088,7 @@ def scan_dataset(
             "warning_columns": warning_columns,
             "problem_columns": problem_columns,
         },
-
         "dataset_issues": dataset_issues,
-
         "sql_issues": sql_issues,
-
         "columns": column_reports,
     }

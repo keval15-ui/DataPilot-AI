@@ -8,6 +8,7 @@ import { Section } from "@/components/ui/section";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { scanDatasetQuality, type QualityReport, type ColumnReport } from "@/lib/services/quality";
+import { CleanDatasetSection } from "@/components/quality/clean-dataset-section";
 
 export default function QualityPage() {
   const searchParams = useSearchParams();
@@ -171,7 +172,7 @@ export default function QualityPage() {
   return (
     <Container className="space-y-8 pb-12">
       <PageShell
-        title="Data Quality Report"
+        title={report.filename?.includes("_cleaned_") ? "Data Quality Report (Cleaned)" : "Data Quality Report"}
         description={`Quality scan report for ${report.filename || "Uploaded Dataset"}`}
         action={
           <Button onClick={() => router.push(`/chat?dataset=${datasetId}`)} className="shadow-lg shadow-sky-500/20 hover:scale-102 transition-transform">
@@ -256,6 +257,8 @@ export default function QualityPage() {
             <p className="mt-4 text-2xs text-slate-500 font-medium tracking-wide">Based on % of clean vs problem columns</p>
           </Card>
         </div>
+
+        <CleanDatasetSection datasetId={datasetId} report={report} />
 
         {/* Quick Statistics Grid */}
         <Section title="Overview Statistics" description="Overall metrics from the data scan.">

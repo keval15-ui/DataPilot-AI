@@ -11,9 +11,13 @@ export type ApiRequestOptions = {
   body?: unknown;
 };
 
-const API_BASE_URL =
+let API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL ??
-  "http://localhost:8000";
+  "http://127.0.0.1:8000";
+
+if (API_BASE_URL.includes("localhost")) {
+  API_BASE_URL = API_BASE_URL.replace("localhost", "127.0.0.1");
+}
 
 /* -------------------------
    JSON Requests
@@ -23,8 +27,10 @@ export async function request<T>(
   path: string,
   options: ApiRequestOptions = {}
 ): Promise<T> {
+  const url = `${API_BASE_URL}${path}`;
+  console.log("[API Request] Fetching URL:", url);
   const response = await fetch(
-    `${API_BASE_URL}${path}`,
+    url,
     {
       method: options.method ?? "GET",
       headers: {
@@ -67,8 +73,10 @@ export async function uploadDataset(
 
   formData.append("file", file);
 
+  const url = `${API_BASE_URL}/upload`;
+  console.log("[API Request] Uploading to:", url);
   const response = await fetch(
-    `${API_BASE_URL}/upload`,
+    url,
     {
       method: "POST",
       body: formData,

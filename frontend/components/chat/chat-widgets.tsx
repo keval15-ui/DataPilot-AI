@@ -169,6 +169,7 @@ export function ChatPanel() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [datasetName, setDatasetName] = useState<string | null>(null);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -181,12 +182,31 @@ export function ChatPanel() {
   }, []);
 
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("dataset");
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          if (parsed.dataset_id === datasetId) {
+            setDatasetName(parsed.original_filename || parsed.filename || null);
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+    }
+  }, [datasetId]);
+
+  useEffect(() => {
     if (!datasetId) return;
 
     fetchDatasetById(datasetId)
       .then((data) => {
-        if (data && typeof window !== "undefined") {
-          localStorage.setItem("dataset", JSON.stringify(data));
+        if (data) {
+          setDatasetName(data.original_filename || data.filename || null);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("dataset", JSON.stringify(data));
+          }
         }
       })
       .catch((err) => {
@@ -350,9 +370,22 @@ export function ChatPanel() {
   return (
     <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
       <Card className="flex h-[640px] flex-col">
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-white">AI Assistant</h3>
-          <p className="mt-1 text-sm text-slate-400">Conversational analytics with SQL, explanations, and charts</p>
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">AI Assistant</h3>
+            <p className="mt-1 text-sm text-slate-400">Conversational analytics with SQL, explanations, and charts</p>
+          </div>
+          {datasetName && (
+            <div className="flex items-center gap-1.5 self-start rounded-full border border-sky-500/25 bg-sky-500/10 px-3 py-1 text-2xs font-medium text-sky-300 sm:self-center shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-sky-400 animate-pulse shrink-0" />
+              <span className="truncate max-w-[150px] inline-block" title={datasetName}>{datasetName}</span>
+              {datasetName.includes("_cleaned_") && (
+                <span className="rounded bg-sky-500/20 px-1 py-0.5 text-[9px] font-bold text-sky-400 uppercase tracking-wide shrink-0">
+                  Cleaned
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 space-y-3 overflow-y-auto rounded-2xl border border-white/10 bg-slate-950/70 p-4">
