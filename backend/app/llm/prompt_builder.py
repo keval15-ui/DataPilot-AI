@@ -127,6 +127,7 @@ def _format_column(
 def build_sql_prompt(
     question: str,
     columns: list[dict[str, Any]],
+    schema_context: str | None = None,
 ) -> str:
     """
     Build a dataset-agnostic prompt for SQL generation.
@@ -137,6 +138,7 @@ def build_sql_prompt(
         - missing-value information
         - unique-value information
         - observed categorical values when available
+        - optional retrieved semantic context
     """
 
     # --------------------------------------------------------
@@ -158,6 +160,10 @@ def build_sql_prompt(
     # Prompt
     # --------------------------------------------------------
 
+    retrieved_block = ""
+    if schema_context:
+        retrieved_block = f"{schema_context}\n"
+
     prompt = f"""
 You are an expert SQLite SQL query generator.
 
@@ -172,7 +178,7 @@ DATASET SCHEMA
 
 {schema}
 
-==================================================
+{retrieved_block}==================================================
 TABLE
 ==================================================
 
@@ -563,3 +569,41 @@ Return ONLY the SQL query.
 """
 
     return prompt.strip()
+
+
+def build_sql_regeneration_prompt(
+    question: str,
+    columns: list[dict],
+    previous_sql: str,
+    errors: list[str],
+    schema_context: str | None = None,
+) -> str:
+    """
+    Build a prompt instructing the LLM to correct its previous SQL query based on validation errors.
+    """
+    base_prompt = build_sql_prompt(question=question, columns=columns, schema_context=schema_context)
+    
+    errors_str = "\n".join(f"- {err}" for err in errors)
+    
+    feedback = f"""
+==================================================
+PREVIOUS ATTEMPT AND VALIDATION ERRORS
+==================================================
+
+On the previous attempt, you generated the following SQL:
+```sql
+{previous_sql}
+```
+
+However, this query failed validation with the following error(s):
+{errors_str}
+
+Please correct the SQL query to solve all the validation errors listed above. Make sure:
+1. Every column referenced actually exists in the schema.
+2. The table name is strictly "dataset" (or matching the SQLite schema).
+3. The SQL is valid SQLite syntax.
+4. You do not introduce any write/modification commands.
+
+Return ONLY the corrected SQL query. Do not include any explanations or markdown wrapping.
+"""
+    return base_prompt + "\n" + feedback

@@ -6,7 +6,6 @@ import { Button } from "@/components/ui/button";
 import { LockIcon } from "@/components/ui/icons";
 
 const futureFeatures = [
-  { title: "RAG Schema Retrieval", description: "Semantic context for your database schemas and queries." },
   { title: "Business Insights", description: "Executive summaries and trend narratives for key metrics." },
   { title: "Root Cause Analysis", description: "Automated analysis of anomalies and operational drivers." },
   { title: "Forecasting", description: "Scenario planning and predictive trend modeling." },
@@ -17,7 +16,8 @@ const futureFeatures = [
 ];
 
 const activeFeatures = [
-  { title: "Notifications", description: "Real-time AI alerts and workflow updates." }
+  { title: "Notifications", description: "Real-time AI alerts and workflow updates." },
+  { title: "RAG Schema Retrieval", description: "Semantic context for your database schemas and queries." },
 ];
 
 export function SettingsPanel() {

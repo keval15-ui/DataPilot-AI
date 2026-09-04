@@ -15,7 +15,7 @@ from app.services.quality_service import scan_dataset
 # Configuration
 # ============================================================
 
-# These are common textual representations of missing data.
+#These are common textual representations of missing data.
 # They are intentionally conservative.
 MISSING_PLACEHOLDERS = {
     "",

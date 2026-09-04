@@ -3,7 +3,7 @@ import os
 from groq import Groq
 from dotenv import load_dotenv
 
-from app.llm.prompt_builder import build_sql_prompt
+from app.llm.prompt_builder import build_sql_prompt, build_sql_regeneration_prompt
 
 # ==========================================
 # Load Environment Variables
@@ -59,6 +59,7 @@ def generate_text(prompt: str) -> str:
 def generate_sql(
     question: str,
     columns: list[dict],
+    schema_context: str | None = None,
 ) -> str:
     """
     Generate SQL from a natural language question.
@@ -67,6 +68,39 @@ def generate_sql(
     prompt = build_sql_prompt(
         question=question,
         columns=columns,
+        schema_context=schema_context,
+    )
+
+    response = client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ],
+        temperature=0,
+    )
+
+    return response.choices[0].message.content.strip()
+
+
+def regenerate_sql(
+    question: str,
+    columns: list[dict],
+    previous_sql: str,
+    errors: list[str],
+    schema_context: str | None = None,
+) -> str:
+    """
+    Regenerate SQL with feedback validation errors.
+    """
+    prompt = build_sql_regeneration_prompt(
+        question=question,
+        columns=columns,
+        previous_sql=previous_sql,
+        errors=errors,
+        schema_context=schema_context,
     )
 
     response = client.chat.completions.create(
